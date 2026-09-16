@@ -1,0 +1,79 @@
+@import '@fontsource-variable/ibm-plex-sans';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+@import '@fontsource/ibm-plex-mono/600.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Fondo de la aplicación y superficies */
+    --paper: 210 42% 95%; /* #EEF3F8 */
+    --surface: 0 0% 100%; /* #FFFFFF */
+    --well: 210 50% 98%; /* #F6F9FC — cabecera de tabla, hover de fila */
+    --soft: 213 44% 95%; /* #EDF2F8 — relleno neutro: tags, chips, botón pasivo */
+    --hero: 212 52% 90%; /* #D9E5F3 — panel destacado */
+
+    /* Líneas */
+    --line: 214 38% 89%; /* #D9E2EE — borde de controles */
+    --paper-rule: 212 37% 93%; /* #E7EDF4 — separador de filas */
+
+    /* Texto */
+    --ink: 207 18% 10%; /* #151A1E */
+    --ink-deep: 213 26% 23%; /* #2C3A4B — texto sobre fondos teñidos */
+    --ink-body: 215 19% 30%; /* #3F4B5C */
+    --ink-mid: 214 15% 36%; /* #4F5B6B — subtítulos */
+    --ink-soft: 215 15% 41%; /* #5A6779 — texto secundario */
+    --ink-mute: 213 16% 57%; /* #7F8FA3 — etiquetas en versalitas */
+
+    /* Acentos semánticos */
+    --stamp: 212 77% 24%; /* #0E3A6B — primario y estado resuelto */
+    --pending: 34 84% 23%; /* #6B4109 — pendiente */
+    --void: 4 72% 32%; /* #8E1F17 — rechazado */
+
+    /* Tintes de chip */
+    --chip-stamp: 213 59% 93%; /* #E4EDF8 */
+    --chip-pending: 37 68% 94%; /* #FAF2E5 */
+    --chip-void: 4 65% 95%; /* #FBEDEC */
+    --dot-pending: 33 78% 30%; /* #885311 */
+    --dot-void: 4 71% 41%; /* #B3281E */
+
+    /* Interacción */
+    --nav-hover: 212 52% 91%; /* #DCE7F4 */
+    --pill-hover: 212 52% 94%; /* #E9F0F8 */
+    --badge-soft: 212 50% 89%; /* #D5E2F1 */
+    --scrim: 212 70% 13%; /* base del velo del modal */
+  }
+
+  body {
+    @apply bg-paper text-ink antialiased;
+    font-family: 'IBM Plex Sans Variable', system-ui, sans-serif;
+  }
+
+  /* Una sola familia para toda la interfaz: los títulos se distinguen por peso
+     y por un tracking negativo, no por otra tipografía. */
+  .font-display {
+    font-family: 'IBM Plex Sans Variable', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  .font-data {
+    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-[hsl(var(--stamp))];
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

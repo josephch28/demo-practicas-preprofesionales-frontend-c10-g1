@@ -1,0 +1,5 @@
+# El equipo del proyecto revisa todo por defecto.
+*                       @equipo-practicas
+
+# El módulo offline-first es el más delicado del template: requiere revisión del líder.
+/src/offline/           @lider-equipo @equipo-practicas

@@ -1,0 +1,9 @@
+{
+  "threshold": 0,
+  "reporters": ["json"],
+  "absolute": true,
+  "gitignore": true,
+  "ignore": ["**/*.spec.*", "**/node_modules/**", "**/dist/**", "**/components/ui/**"],
+  "minLines": 5,
+  "minTokens": 50
+}

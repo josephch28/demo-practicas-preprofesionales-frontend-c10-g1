@@ -1,0 +1,7 @@
+# Configuración de pnpm (desde pnpm 10 los ajustes ya no se leen del campo
+# "pnpm" del package.json: viven aquí).
+#
+# pnpm bloquea por defecto los scripts de instalación de las dependencias.
+# esbuild sí los necesita para dejar listo su binario nativo.
+allowBuilds:
+  esbuild: true
