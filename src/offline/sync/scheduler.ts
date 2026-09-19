@@ -1,7 +1,7 @@
 import { db } from '@/offline/db'
 import { pullChanges } from './pull'
 import { pushOutbox } from './push'
-import { setStatus } from './status'
+import { getStatus, setStatus } from './status'
 
 const SYNC_INTERVAL_MS = 60_000
 // Tope de rondas de pull por corrida: evita que un servidor que siempre
@@ -38,13 +38,20 @@ async function runSync(): Promise<void> {
   }
 }
 
-/** Corre pull + push. Si ya hay una corrida en curso, la reutiliza en vez de duplicarla. */
+
+ // Corre pull + push. Si ya hay una corrida en curso EN ESTA pestaña, la
+ // reutiliza en vez de duplicarla. Si `syncing` ya está en `true` porque
+ // OTRA pestaña lo puso ahí (nos llega por BroadcastChannel vía status.ts),
+ // no arrancamos una corrida nueva sobre la misma cola: la dejamos para el
+ // próximo ciclo. `currentSync` por sí solo no alcanza porque cada pestaña
+ // tiene su propia copia de este módulo.
 export function syncNow(): Promise<void> {
-  if (!currentSync) {
-    currentSync = runSync().finally(() => {
-      currentSync = null
-    })
-  }
+  if (currentSync) return currentSync
+  if (getStatus().syncing) return Promise.resolve()
+
+  currentSync = runSync().finally(() => {
+    currentSync = null
+  })
   return currentSync
 }
 
