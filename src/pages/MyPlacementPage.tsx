@@ -185,17 +185,32 @@ function RecentLogs({ logs }: { logs: LocalHourLog[] | undefined }) {
     <Section title="Últimos registros de horas" aside={aside}>
       <Ledger>
         {recent.map((log, index) => (
-          <LedgerRow key={index} syncState={log.syncState}>
-            <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
-            <span className="font-data text-13 text-inkSoft sm:w-28">
-              {log.startTime}–{log.endTime}
-            </span>
-            <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
-            <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
-            <span className="sm:w-32 sm:text-right">
-              <StatusBadge status={log.status} />
-            </span>
-          </LedgerRow>
+          <div key={index}>
+            <LedgerRow syncState={log.syncState}>
+              <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
+              <span className="font-data text-13 text-inkSoft sm:w-28">
+                {log.startTime}–{log.endTime}
+              </span>
+              <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
+              <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
+              <span className="sm:w-32 sm:text-right">
+                <StatusBadge status={log.status} />
+              </span>
+            </LedgerRow>
+            {log.syncState === 'failed' && log.reviewNote && (
+              <div className="flex items-start gap-2 rounded-md bg-void/10 mx-[18px] mb-2 px-3 py-2">
+                <span className="shrink-0 text-14 text-void" aria-hidden>⚠</span>
+                <p className="flex-1 text-12 text-void">{log.reviewNote}</p>
+                <button
+                  type="button"
+                  className="shrink-0 text-12 font-medium text-void underline hover:text-void/70"
+                  onClick={() => db.hourLogs.update(log.id, { syncState: 'synced', reviewNote: null })}
+                >
+                  Entendido
+                </button>
+              </div>
+            )}
+          </div>
         ))}
       </Ledger>
     </Section>

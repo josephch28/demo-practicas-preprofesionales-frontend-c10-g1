@@ -19,7 +19,7 @@ import { LedgerRow } from '@/components/ledger/LedgerRow'
 import { parseLocalDate } from '@/lib/date'
 import { type HoursSummary, summarizeHours } from '@/lib/hours'
 import { plural } from '@/lib/utils'
-import type { LocalHourLog } from '@/offline/db'
+import { db, type LocalHourLog } from '@/offline/db'
 import { useHourLogs } from '@/offline/hooks/useHourLogs'
 import { usePlacement } from '@/offline/hooks/usePlacement'
 
@@ -56,23 +56,45 @@ function HourLogsList({ logs }: { logs: LocalHourLog[] }) {
     )
   }
 
+  async function dismissReviewNote(logId: number) {
+    // El estado del servidor ya está aplicado en la fila (conflict.ts hizo
+    // spread de serverFields), así que solo falta limpiar el indicador de
+    // fallo y la nota para que vuelva a verse normal.
+    await db.hourLogs.update(logId, { syncState: 'synced', reviewNote: null })
+  }
+
   return (
     <Ledger header={<LedgerColumnHeader />}>
       {logs
         .slice()
         .reverse()
         .map((log) => (
-          <LedgerRow key={log.id} syncState={log.syncState}>
-            <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
-            <span className="font-data text-13 text-inkSoft sm:w-28">
-              {log.startTime}–{log.endTime}
-            </span>
-            <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
-            <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
-            <span className="sm:w-32 sm:text-right">
-              <StatusBadge status={log.status} />
-            </span>
-          </LedgerRow>
+          <div key={log.id}>
+            <LedgerRow syncState={log.syncState}>
+              <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
+              <span className="font-data text-13 text-inkSoft sm:w-28">
+                {log.startTime}–{log.endTime}
+              </span>
+              <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
+              <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
+              <span className="sm:w-32 sm:text-right">
+                <StatusBadge status={log.status} />
+              </span>
+            </LedgerRow>
+            {log.syncState === 'failed' && log.reviewNote && (
+              <div className="flex items-start gap-2 rounded-md bg-void/10 mx-[18px] mb-2 px-3 py-2">
+                <span className="shrink-0 text-14 text-void" aria-hidden>⚠</span>
+                <p className="flex-1 text-12 text-void">{log.reviewNote}</p>
+                <button
+                  type="button"
+                  className="shrink-0 text-12 font-medium text-void underline hover:text-void/70"
+                  onClick={() => dismissReviewNote(log.id)}
+                >
+                  Entendido
+                </button>
+              </div>
+            )}
+          </div>
         ))}
     </Ledger>
   )
