@@ -41,17 +41,32 @@ export async function pushOutbox(): Promise<{ applied: number; failed: number }>
   }))
 
   // El outbox es lo único que sabe qué id local le corresponde a cada operación,
-  // así que el mapa se captura en memoria antes de vaciarlo.
+  // así que el mapa se captura en memoria antes de tocar la cola.
   const localIds = new Map(entries.map((e) => [e.clientOpId, Number(e.payload.id)]))
 
-  await db.outbox.bulkDelete(entries.map((e) => e.id as number))
-
+  // E1-02: no borramos entradas del outbox antes de llamar al servidor. Si la
+  // red se corta acá (o /sync/push lanza), las operaciones se quedan en cola
+  // y se reintentan en la próxima corrida.
   const { results } = await api<{ results: SyncOperationResult[] }>('/sync/push', {
     method: 'POST',
     body: JSON.stringify({ ops }),
   })
 
   await applyResults(results, localIds)
+
+  // Solo se retiran del outbox las operaciones para las que el servidor emitió
+  // veredicto (applied, conflict o rejected). Los rechazos no se reintentan:
+  // el motivo ya quedó en hourLogs.reviewNote vía applyResults, así que el
+  // estudiante lo ve en la UI. Las operaciones que el servidor no reconoció
+  // en su respuesta permanecen en cola.
+  const acknowledged = new Set(results.map((r) => r.clientOpId))
+  const idsToDelete = entries
+    .filter((e) => acknowledged.has(e.clientOpId))
+    .map((e) => e.id as number)
+  if (idsToDelete.length > 0) {
+    await db.outbox.bulkDelete(idsToDelete)
+  }
+
   return {
     applied: results.filter((r) => r.status === 'applied').length,
     failed: results.filter((r) => r.status !== 'applied').length,
