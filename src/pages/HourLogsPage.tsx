@@ -3,6 +3,7 @@ import { HourLogForm } from '@/components/HourLogForm'
 import { HoursProgressPanel } from '@/components/HoursProgressPanel'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState, LoadingState, Panel } from '@/components/Panel'
+import { ReviewNoteBanner } from '@/components/ReviewNoteBanner'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import {
@@ -62,17 +63,20 @@ function HourLogsList({ logs }: { logs: LocalHourLog[] }) {
         .slice()
         .reverse()
         .map((log) => (
-          <LedgerRow key={log.id} syncState={log.syncState}>
-            <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
-            <span className="font-data text-13 text-inkSoft sm:w-28">
-              {log.startTime}–{log.endTime}
-            </span>
-            <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
-            <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
-            <span className="sm:w-32 sm:text-right">
-              <StatusBadge status={log.status} />
-            </span>
-          </LedgerRow>
+          <div key={log.id}>
+            <LedgerRow syncState={log.syncState}>
+              <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
+              <span className="font-data text-13 text-inkSoft sm:w-28">
+                {log.startTime}–{log.endTime}
+              </span>
+              <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
+              <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
+              <span className="sm:w-32 sm:text-right">
+                <StatusBadge status={log.status} />
+              </span>
+            </LedgerRow>
+            <ReviewNoteBanner log={log} />
+          </div>
         ))}
     </Ledger>
   )

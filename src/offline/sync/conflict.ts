@@ -38,7 +38,13 @@ export async function applyResults(
 
     const targetId = localId ?? result.server?.id
     if (targetId != null) {
-      await db.hourLogs.update(targetId, { syncState: 'failed', reviewNote: result.reason })
+      const serverFields: Partial<LocalHourLog> = { ...result.server }
+      delete serverFields.id
+      await db.hourLogs.update(targetId, {
+        ...serverFields,
+        syncState: 'failed',
+        reviewNote: result.reason,
+      })
     }
   }
 }

@@ -54,3 +54,14 @@ No supimos testear hooks que tocan IndexedDB y lo dejamos así. Todos usan `useL
 hacerlo acá, pero nunca nos sentamos a escribirlos. Si vas a tocar cómo se leen las horas o
 la plaza del estudiante desde la UI, vas a ciegas. No hay red de seguridad que te avise si
 rompiste algo.
+
+## D-11 · No se pueden editar horas desde la UI
+
+`src/components/HourLogForm.tsx`, `src/pages/HourLogsPage.tsx`.
+
+El formulario de horas solo crea registros nuevos (`op: 'create'`). No hay ningún botón
+"Editar" ni flujo que encole un `op: 'update'` con `baseVersion` al outbox. El backend
+soporta operaciones de update y delete en `sync.service.ts`, y la resolución de conflictos
+(E1-04) depende de que el estudiante pueda editar para que el servidor rechace ediciones
+sobre horas ya aprobadas o rechazadas. Sin la UI de edición, ese camino solo se puede
+verificar con tests unitarios o manipulando IndexedDB a mano.
