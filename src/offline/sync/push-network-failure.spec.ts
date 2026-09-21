@@ -13,9 +13,9 @@ beforeEach(async () => {
   mockedApi.mockReset()
 })
 
-describe('spike E1-01: perdida de horas cuando la red falla a mitad del envio', () => {
+describe('E1-01/E1-02: perdida de horas cuando la red falla a mitad del envio', () => {
 
-  it.fails('conserva la hora en el outbox si /sync/push falla, para poder reintentarla', async () => {
+  it('conserva la hora en el outbox si /sync/push falla, para poder reintentarla', async () => {
     await db.hourLogs.put({
       id: 11,
       placementId: 1,
