@@ -3,6 +3,7 @@ import { HourLogForm } from '@/components/HourLogForm'
 import { HoursProgressPanel } from '@/components/HoursProgressPanel'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState, LoadingState, Panel } from '@/components/Panel'
+import { ReviewNoteBanner } from '@/components/ReviewNoteBanner'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,7 +20,7 @@ import { LedgerRow } from '@/components/ledger/LedgerRow'
 import { parseLocalDate } from '@/lib/date'
 import { type HoursSummary, summarizeHours } from '@/lib/hours'
 import { plural } from '@/lib/utils'
-import { db, type LocalHourLog } from '@/offline/db'
+import type { LocalHourLog } from '@/offline/db'
 import { useHourLogs } from '@/offline/hooks/useHourLogs'
 import { usePlacement } from '@/offline/hooks/usePlacement'
 
@@ -56,13 +57,6 @@ function HourLogsList({ logs }: { logs: LocalHourLog[] }) {
     )
   }
 
-  async function dismissReviewNote(logId: number) {
-    // El estado del servidor ya está aplicado en la fila (conflict.ts hizo
-    // spread de serverFields), así que solo falta limpiar el indicador de
-    // fallo y la nota para que vuelva a verse normal.
-    await db.hourLogs.update(logId, { syncState: 'synced', reviewNote: null })
-  }
-
   return (
     <Ledger header={<LedgerColumnHeader />}>
       {logs
@@ -81,19 +75,7 @@ function HourLogsList({ logs }: { logs: LocalHourLog[] }) {
                 <StatusBadge status={log.status} />
               </span>
             </LedgerRow>
-            {log.syncState === 'failed' && log.reviewNote && (
-              <div className="flex items-start gap-2 rounded-md bg-void/10 mx-[18px] mb-2 px-3 py-2">
-                <span className="shrink-0 text-14 text-void" aria-hidden>⚠</span>
-                <p className="flex-1 text-12 text-void">{log.reviewNote}</p>
-                <button
-                  type="button"
-                  className="shrink-0 text-12 font-medium text-void underline hover:text-void/70"
-                  onClick={() => dismissReviewNote(log.id)}
-                >
-                  Entendido
-                </button>
-              </div>
-            )}
+            <ReviewNoteBanner log={log} />
           </div>
         ))}
     </Ledger>
