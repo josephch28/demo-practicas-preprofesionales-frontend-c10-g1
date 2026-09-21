@@ -22,9 +22,9 @@ beforeEach(async () => {
   setStatus({ online: true, syncing: false, pending: 0, lastSyncAt: null })
 })
 
-describe('spike E1-07 (D-08): el indicador miente por una ventana corta al cerrar el sync', () => {
+describe('E1-07 (D-08): el indicador no puede decir sincronizado con pendientes', () => {
 
-  it.fails(
+  it(
     'no emite ningun estado con syncing:false y un pending distinto al contenido real de la cola',
     async () => {
       localStorage.setItem('access_token', 'tok')
