@@ -88,15 +88,22 @@ async function runSync(): Promise<void> {
 
     await pushOutbox(currentRetryConfig.maxAttempts)
 
-    setStatus({ syncing: false, lastSyncAt: new Date().toISOString() })
-    setStatus({ pending: await db.outbox.count() })
+    // E1-07: el cierre del ciclo emite un solo setStatus con syncing,
+    // lastSyncAt y pending juntos. Antes eran dos llamadas separadas por
+    // un await db.outbox.count(), y en esa ventana el store dejaba ver
+    // syncing:false con el pending viejo (D-08).
+    const pending = await db.outbox.count()
+    setStatus({ syncing: false, lastSyncAt: new Date().toISOString(), pending })
 
     // Sincronización exitosa: reseteamos reintentos y cancelamos cualquier timer previo
     retryAttempt = 0
     cancelRetry()
   } catch (err) {
     console.error('sincronización falló', err)
-    setStatus({ syncing: false })
+    // Tambien en el camino de error recalculamos pending: si push llego a
+    // encolar reintentos antes de fallar, el indicador debe reflejarlo.
+    const pending = await db.outbox.count()
+    setStatus({ syncing: false, pending })
     await scheduleRetryIfEligible()
   }
 }
