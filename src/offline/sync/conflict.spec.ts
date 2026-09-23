@@ -54,6 +54,48 @@ describe('applyResults', () => {
     await expect(db.hourLogs.get(6)).resolves.toMatchObject({ syncState: 'failed', reviewNote: 'el placement no es tuyo' })
   })
 
+  it('persists server fields (such as status APPROVED) in Dexie when an operation is rejected with a definitive state (E1-04)', async () => {
+    await db.hourLogs.put({
+      id: 7,
+      placementId: 1,
+      date: '2026-04-01',
+      startTime: '08:00',
+      endTime: '12:00',
+      hours: 4,
+      activity: 'Soporte',
+      status: 'SUBMITTED',
+      version: 1,
+      updatedAt: '2026-04-01T00:00:00.000Z',
+      syncState: 'queued',
+    })
+
+    await applyResults(
+      [
+        {
+          clientOpId: 'r',
+          status: 'rejected',
+          server: {
+            id: 7,
+            status: 'APPROVED',
+            version: 2,
+            updatedAt: '2026-04-01T10:00:00.000Z',
+          },
+          reason: 'Tus cambios no se guardaron porque el tutor ya aprobó este registro.',
+        },
+      ],
+      new Map([['r', 7]]),
+    )
+
+    const row = await db.hourLogs.get(7)
+    expect(row).toMatchObject({
+      id: 7,
+      status: 'APPROVED',
+      version: 2,
+      syncState: 'failed',
+      reviewNote: 'Tus cambios no se guardaron porque el tutor ya aprobó este registro.',
+    })
+  })
+
   it('reconciles a negative local id with the id the server assigned on create, leaving a single row', async () => {
     await db.hourLogs.put({
       id: -1700000000000,

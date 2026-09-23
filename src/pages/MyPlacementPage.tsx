@@ -4,6 +4,7 @@ import { HeroCard, HeroPanel } from '@/components/HeroPanel'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState, LoadingState, Section } from '@/components/Panel'
 import { ProgressBar } from '@/components/ProgressBar'
+import { ReviewNoteBanner } from '@/components/ReviewNoteBanner'
 import { StatCard, StatGrid } from '@/components/StatCard'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
@@ -185,17 +186,20 @@ function RecentLogs({ logs }: { logs: LocalHourLog[] | undefined }) {
     <Section title="Últimos registros de horas" aside={aside}>
       <Ledger>
         {recent.map((log, index) => (
-          <LedgerRow key={index} syncState={log.syncState}>
-            <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
-            <span className="font-data text-13 text-inkSoft sm:w-28">
-              {log.startTime}–{log.endTime}
-            </span>
-            <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
-            <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
-            <span className="sm:w-32 sm:text-right">
-              <StatusBadge status={log.status} />
-            </span>
-          </LedgerRow>
+          <div key={index}>
+            <LedgerRow syncState={log.syncState}>
+              <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
+              <span className="font-data text-13 text-inkSoft sm:w-28">
+                {log.startTime}–{log.endTime}
+              </span>
+              <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
+              <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
+              <span className="sm:w-32 sm:text-right">
+                <StatusBadge status={log.status} />
+              </span>
+            </LedgerRow>
+            <ReviewNoteBanner log={log} />
+          </div>
         ))}
       </Ledger>
     </Section>

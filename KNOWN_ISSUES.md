@@ -18,19 +18,6 @@ en 10. Tres números para la misma regla de negocio y ninguno coincide con los o
 Nadie recuerda cuál es el correcto. Probablemente ninguno. Hay que preguntarle a alguien de
 la unidad de vinculación cuántas horas se pueden registrar por día antes de tocar esto.
 
-## D-08 · El indicador de sync miente por una ventana corta
-
-`src/offline/sync/status.ts`, `src/offline/sync/scheduler.ts`.
-
-Cuando termina un push, `runSync` llama `setStatus({ syncing: false, lastSyncAt: ... })`.
-En ese momento el indicador ya se pinta como sincronizado. El contador de `pending` se
-recalcula aparte, en un `await db.outbox.count()` una línea después. Entre esas dos
-llamadas hay una vuelta al event loop en la que el estado en memoria dice "ya terminé" con
-un contador de pendientes que todavía no se actualizó. Es una ventana de milisegundos, no
-la vas a notar mirando la pantalla, pero si escribes un test que aserte sobre el orden de
-los estados del indicador, la vas a agarrar. No nos alcanzó a arreglar. Hay que juntar
-ambos `setStatus` en uno solo, o calcular `pending` antes de marcar `syncing: false`.
-
 ## D-09 · `HourLogForm.tsx` hace de todo
 
 `src/components/HourLogForm.tsx`, 348 líneas.
@@ -54,3 +41,14 @@ No supimos testear hooks que tocan IndexedDB y lo dejamos así. Todos usan `useL
 hacerlo acá, pero nunca nos sentamos a escribirlos. Si vas a tocar cómo se leen las horas o
 la plaza del estudiante desde la UI, vas a ciegas. No hay red de seguridad que te avise si
 rompiste algo.
+
+## D-11 · No se pueden editar horas desde la UI
+
+`src/components/HourLogForm.tsx`, `src/pages/HourLogsPage.tsx`.
+
+El formulario de horas solo crea registros nuevos (`op: 'create'`). No hay ningún botón
+"Editar" ni flujo que encole un `op: 'update'` con `baseVersion` al outbox. El backend
+soporta operaciones de update y delete en `sync.service.ts`, y la resolución de conflictos
+(E1-04) depende de que el estudiante pueda editar para que el servidor rechace ediciones
+sobre horas ya aprobadas o rechazadas. Sin la UI de edición, ese camino solo se puede
+verificar con tests unitarios o manipulando IndexedDB a mano.
