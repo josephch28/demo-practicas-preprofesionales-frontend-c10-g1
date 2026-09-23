@@ -18,19 +18,6 @@ en 10. Tres números para la misma regla de negocio y ninguno coincide con los o
 Nadie recuerda cuál es el correcto. Probablemente ninguno. Hay que preguntarle a alguien de
 la unidad de vinculación cuántas horas se pueden registrar por día antes de tocar esto.
 
-## D-08 · El indicador de sync miente por una ventana corta
-
-`src/offline/sync/status.ts`, `src/offline/sync/scheduler.ts`.
-
-Cuando termina un push, `runSync` llama `setStatus({ syncing: false, lastSyncAt: ... })`.
-En ese momento el indicador ya se pinta como sincronizado. El contador de `pending` se
-recalcula aparte, en un `await db.outbox.count()` una línea después. Entre esas dos
-llamadas hay una vuelta al event loop en la que el estado en memoria dice "ya terminé" con
-un contador de pendientes que todavía no se actualizó. Es una ventana de milisegundos, no
-la vas a notar mirando la pantalla, pero si escribes un test que aserte sobre el orden de
-los estados del indicador, la vas a agarrar. No nos alcanzó a arreglar. Hay que juntar
-ambos `setStatus` en uno solo, o calcular `pending` antes de marcar `syncing: false`.
-
 ## D-09 · `HourLogForm.tsx` hace de todo
 
 `src/components/HourLogForm.tsx`, 348 líneas.
