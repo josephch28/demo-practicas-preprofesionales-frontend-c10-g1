@@ -61,6 +61,7 @@ describe('AuthProvider', () => {
   it('login stores the token and user, and updates the context', async () => {
     vi.mocked(api).mockResolvedValue({
       accessToken: 'tok-123',
+      refreshToken: 'ref-456',
       user: { id: 5, email: 'empresa0@miyura.com', fullName: 'Empresa 0', role: 'COMPANY', companyId: 1 },
     })
     const { result } = renderHook(() => useAuth(), { wrapper: withProvider })
@@ -74,13 +75,15 @@ describe('AuthProvider', () => {
       body: JSON.stringify({ email: 'empresa0@miyura.com', password: 'yura1234' }),
     })
     expect(localStorage.getItem('access_token')).toBe('tok-123')
+    expect(localStorage.getItem('refresh_token')).toBe('ref-456')
     expect(result.current.user?.companyId).toBe(1)
     expect(result.current.role).toBe('COMPANY')
   })
 
-  it('logout clears storage and the context', async () => {
+  it('logout clears storage, including refresh_token, and the context', async () => {
     vi.mocked(api).mockResolvedValue({
       accessToken: 'tok-123',
+      refreshToken: 'ref-456',
       user: { id: 5, email: 'empresa0@miyura.com', fullName: 'Empresa 0', role: 'COMPANY', companyId: 1 },
     })
     const { result } = renderHook(() => useAuth(), { wrapper: withProvider })
@@ -93,6 +96,7 @@ describe('AuthProvider', () => {
     })
 
     expect(localStorage.getItem('access_token')).toBeNull()
+    expect(localStorage.getItem('refresh_token')).toBeNull()
     expect(localStorage.getItem('user')).toBeNull()
     expect(result.current.user).toBeNull()
   })
@@ -131,5 +135,27 @@ describe('AuthProvider', () => {
 
     expect(await db.placements.count()).toBe(0)
     expect(await db.meta.count()).toBe(0)
+  })
+
+  it('clears session when a storage event indicates logout in another tab', async () => {
+    localStorage.setItem('access_token', 'tok-123')
+    localStorage.setItem('user', JSON.stringify({ id: 1, email: 'test@miyura.com', role: 'STUDENT', fullName: 'Test', companyId: null }))
+
+    const { result } = renderHook(() => useAuth(), { wrapper: withProvider })
+    expect(result.current.user).not.toBeNull()
+
+    // Disparar evento storage simulando otra pestaña que eliminó access_token
+    await act(async () => {
+      window.dispatchEvent(
+        new StorageEvent('storage', {
+          key: 'access_token',
+          oldValue: 'tok-123',
+          newValue: null,
+        }),
+      )
+    })
+
+    expect(result.current.user).toBeNull()
+    expect(localStorage.getItem('access_token')).toBeNull()
   })
 })
