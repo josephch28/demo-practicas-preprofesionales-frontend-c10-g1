@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/api/client'
+import { api, onSessionExpired } from '@/api/client'
 import { db } from '@/offline/db'
 
 export type Role = 'STUDENT' | 'TUTOR' | 'COMPANY' | 'COORDINATOR'
@@ -18,6 +18,7 @@ export interface AuthUser {
 
 interface LoginResponse {
   accessToken: string
+  refreshToken?: string
   user: AuthUser
 }
 
@@ -29,6 +30,9 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+
+// Canal para sincronizar eventos de autenticación entre pestañas del navegador
+const authChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('auth-channel') : null
 
 function readStoredUser(): AuthUser | null {
   const raw = localStorage.getItem('user')
@@ -44,12 +48,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => readStoredUser())
   const navigate = useNavigate()
 
+  async function wipeLocalSession(): Promise<void> {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('user')
+    setUser(null)
+    await db.delete()
+    await db.open()
+  }
+
+  // Escuchar cierre de sesión en otras pestañas
+  useEffect(() => {
+    async function handleStorageEvent(event: StorageEvent) {
+      if (event.key === 'access_token' && !event.newValue) {
+        await wipeLocalSession()
+        navigate('/login')
+      }
+    }
+
+    async function handleChannelMessage(event: MessageEvent<{ type: string; reason?: string }>) {
+      if (event.data?.type === 'LOGOUT') {
+        await wipeLocalSession()
+        navigate('/login', { state: event.data.reason ? { message: event.data.reason } : undefined })
+      }
+    }
+
+    const unbindSessionExpired = onSessionExpired(async (msg) => {
+      await wipeLocalSession()
+      authChannel?.postMessage({ type: 'LOGOUT', reason: msg })
+      navigate('/login', { state: { message: msg } })
+    })
+
+    window.addEventListener('storage', handleStorageEvent)
+    authChannel?.addEventListener('message', handleChannelMessage)
+
+    return () => {
+      unbindSessionExpired()
+      window.removeEventListener('storage', handleStorageEvent)
+      authChannel?.removeEventListener('message', handleChannelMessage)
+    }
+  }, [navigate])
+
   async function login(email: string, password: string) {
-    const { accessToken, user: loggedUser } = await api<LoginResponse>('/auth/login', {
+    const { accessToken, refreshToken, user: loggedUser } = await api<LoginResponse>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     })
     localStorage.setItem('access_token', accessToken)
+    if (refreshToken) {
+      localStorage.setItem('refresh_token', refreshToken)
+    }
     localStorage.setItem('user', JSON.stringify(loggedUser))
     setUser(loggedUser)
   }
@@ -58,11 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // si no se borra Dexie, el checkpoint de sync y los datos del estudiante
   // anterior sobreviven a esta sesión y contaminan la del siguiente.
   async function logout() {
-    await db.delete()
-    await db.open()
-    localStorage.removeItem('access_token')
-    localStorage.removeItem('user')
-    setUser(null)
+    await wipeLocalSession()
+    // Notifica a las otras pestañas para que también cierren la sesión inmediatamente
+    authChannel?.postMessage({ type: 'LOGOUT' })
     navigate('/login')
   }
 
