@@ -9,91 +9,75 @@ export interface HourLogFormProps {
   onSaved?: () => void
 }
 
-function FieldError({ id, error }: { id: string; error?: string }) {
-  if (!error) return null
-  return (
-    <p id={id} role="alert" className="text-12 text-void">
-      {error}
-    </p>
-  )
-}
-
-function TimeRangeFields({
-  startTime,
-  endTime,
-  errors,
-  onChange,
-}: {
-  startTime: string
-  endTime: string
-  errors: { startTime?: string; endTime?: string }
-  onChange: (field: 'startTime' | 'endTime', value: string) => void
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="hourlog-start">Hora de inicio</Label>
-        <Input
-          id="hourlog-start"
-          type="time"
-          value={startTime}
-          onChange={(e) => onChange('startTime', e.target.value)}
-          aria-invalid={Boolean(errors.startTime)}
-          aria-describedby={errors.startTime ? 'hourlog-start-error' : undefined}
-          className="font-data"
-        />
-        <FieldError id="hourlog-start-error" error={errors.startTime} />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor="hourlog-end">Hora de fin</Label>
-        <Input
-          id="hourlog-end"
-          type="time"
-          value={endTime}
-          onChange={(e) => onChange('endTime', e.target.value)}
-          aria-invalid={Boolean(errors.endTime)}
-          aria-describedby={errors.endTime ? 'hourlog-end-error' : undefined}
-          className="font-data"
-        />
-        <FieldError id="hourlog-end-error" error={errors.endTime} />
-      </div>
-    </div>
-  )
-}
-
 export function HourLogForm({ placementId, onSaved }: HourLogFormProps) {
   const form = useHourLogForm({ placementId, onSaved })
+  const { date, setDate, startTime, setStartTime, endTime, setEndTime, hours, setHours, activity, setActivity } = form
+  const { errors, submitting, submitError, confirmationLabel, durationLabel, liveHoursWarning, handleSubmit } = form
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={form.handleSubmit} noValidate>
+    <form className="flex flex-col gap-4" onSubmit={handleSubmit} noValidate>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="hourlog-date">Fecha</Label>
         <Input
           id="hourlog-date"
           type="date"
-          value={form.date}
-          onChange={(e) => form.setField('date', e.target.value)}
-          aria-invalid={Boolean(form.errors.date)}
-          aria-describedby={form.errors.date ? 'hourlog-date-error' : undefined}
+          value={date}
+          onChange={(event) => setDate(event.target.value)}
+          aria-invalid={Boolean(errors.date)}
+          aria-describedby={errors.date ? 'hourlog-date-error' : undefined}
           className="font-data"
         />
-        {form.confirmationLabel && (
-          <p className="font-data text-12 text-inkSoft">{form.confirmationLabel}</p>
-        )}
-        <FieldError id="hourlog-date-error" error={form.errors.date} />
+        {confirmationLabel ? (
+          <p className="font-data text-12 text-inkSoft">{confirmationLabel}</p>
+        ) : null}
+        {errors.date ? (
+          <p id="hourlog-date-error" role="alert" className="text-12 text-void">
+            {errors.date}
+          </p>
+        ) : null}
       </div>
 
-      <TimeRangeFields
-        startTime={form.startTime}
-        endTime={form.endTime}
-        errors={form.errors}
-        onChange={form.setField}
-      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="hourlog-start">Hora de inicio</Label>
+          <Input
+            id="hourlog-start"
+            type="time"
+            value={startTime}
+            onChange={(event) => setStartTime(event.target.value)}
+            aria-invalid={Boolean(errors.startTime)}
+            aria-describedby={errors.startTime ? 'hourlog-start-error' : undefined}
+            className="font-data"
+          />
+          {errors.startTime ? (
+            <p id="hourlog-start-error" role="alert" className="text-12 text-void">
+              {errors.startTime}
+            </p>
+          ) : null}
+        </div>
 
-      {form.durationLabel && (
-        <p className="-mt-2 font-data text-12 text-inkSoft">{form.durationLabel}</p>
-      )}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="hourlog-end">Hora de fin</Label>
+          <Input
+            id="hourlog-end"
+            type="time"
+            value={endTime}
+            onChange={(event) => setEndTime(event.target.value)}
+            aria-invalid={Boolean(errors.endTime)}
+            aria-describedby={errors.endTime ? 'hourlog-end-error' : undefined}
+            className="font-data"
+          />
+          {errors.endTime ? (
+            <p id="hourlog-end-error" role="alert" className="text-12 text-void">
+              {errors.endTime}
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      {durationLabel ? (
+        <p className="-mt-2 font-data text-12 text-inkSoft">{durationLabel}</p>
+      ) : null}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="hourlog-hours">Horas</Label>
@@ -102,40 +86,52 @@ export function HourLogForm({ placementId, onSaved }: HourLogFormProps) {
           type="number"
           inputMode="decimal"
           step="0.5"
-          value={form.hours}
-          onChange={(e) => form.setField('hours', e.target.value)}
-          aria-invalid={Boolean(form.errors.hours)}
-          aria-describedby={form.errors.hours ? 'hourlog-hours-error' : undefined}
+          value={hours}
+          onChange={(event) => setHours(event.target.value)}
+          aria-invalid={Boolean(errors.hours)}
+          aria-describedby={errors.hours ? 'hourlog-hours-error' : undefined}
           className="font-data tabular-nums"
         />
-        {form.liveHoursWarning && !form.errors.hours && (
-          <p className="text-12 text-pending">{form.liveHoursWarning}</p>
-        )}
-        <FieldError id="hourlog-hours-error" error={form.errors.hours} />
+        {liveHoursWarning && !errors.hours ? (
+          <p className="text-12 text-pending">{liveHoursWarning}</p>
+        ) : null}
+        {errors.hours ? (
+          <p id="hourlog-hours-error" role="alert" className="text-12 text-void">
+            {errors.hours}
+          </p>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="hourlog-activity">Actividad</Label>
         <Textarea
           id="hourlog-activity"
-          value={form.activity}
-          onChange={(e) => form.setField('activity', e.target.value)}
-          aria-invalid={Boolean(form.errors.activity)}
-          aria-describedby={form.errors.activity ? 'hourlog-activity-error' : undefined}
+          value={activity}
+          onChange={(event) => setActivity(event.target.value)}
+          aria-invalid={Boolean(errors.activity)}
+          aria-describedby={errors.activity ? 'hourlog-activity-error' : undefined}
           rows={3}
           placeholder="Qué hiciste durante este bloque de horas"
         />
-        <FieldError id="hourlog-activity-error" error={form.errors.activity} />
+        {errors.activity ? (
+          <p id="hourlog-activity-error" role="alert" className="text-12 text-void">
+            {errors.activity}
+          </p>
+        ) : null}
       </div>
 
-      <FieldError id="hourlog-submit-error" error={form.submitError ?? undefined} />
+      {submitError ? (
+        <p role="alert" className="text-14 text-void">
+          {submitError}
+        </p>
+      ) : null}
 
       <p className="text-12 text-inkSoft">
         Se guarda en este dispositivo aunque no tengas conexión. Se sincroniza solo cuando vuelvas a estar en línea
       </p>
 
-      <Button type="submit" disabled={form.submitting}>
-        {form.submitting ? 'Guardando…' : 'Guardar horas'}
+      <Button type="submit" disabled={submitting}>
+        {submitting ? 'Guardando…' : 'Guardar horas'}
       </Button>
     </form>
   )

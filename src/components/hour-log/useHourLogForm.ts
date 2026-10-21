@@ -29,25 +29,20 @@ export function useHourLogForm({ placementId, onSaved }: UseHourLogFormOptions) 
     ? validateHourLogInput(state.hours, state.startTime, state.endTime)
     : null
 
-  function setField(field: keyof HourLogFormValues, value: string) {
+  const setField = (field: keyof HourLogFormValues, value: string) => {
     dispatch({ type: 'SET_FIELD', field, value })
   }
 
-  function resetForm() {
-    dispatch({ type: 'RESET' })
-  }
+  const resetForm = () => dispatch({ type: 'RESET' })
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const nextErrors = validateHourLogForm(state)
     dispatch({ type: 'SET_ERRORS', errors: nextErrors })
 
-    if (Object.keys(nextErrors).length > 0) {
-      return
-    }
+    if (Object.keys(nextErrors).length > 0) return
 
     dispatch({ type: 'SUBMIT_START' })
-
     const row = buildLocalHourLog(placementId, state)
     const op = buildHourLogPushOperation(row)
 
@@ -56,7 +51,6 @@ export function useHourLogForm({ placementId, onSaved }: UseHourLogFormOptions) 
         await db.hourLogs.add(row)
         await enqueue(op)
       })
-
       dispatch({ type: 'SUBMIT_SUCCESS' })
       onSaved?.()
     } catch {
@@ -69,6 +63,11 @@ export function useHourLogForm({ placementId, onSaved }: UseHourLogFormOptions) 
 
   return {
     ...state,
+    setDate: (v: string) => setField('date', v),
+    setStartTime: (v: string) => setField('startTime', v),
+    setEndTime: (v: string) => setField('endTime', v),
+    setHours: (v: string) => setField('hours', v),
+    setActivity: (v: string) => setField('activity', v),
     confirmationLabel,
     durationLabel,
     liveHoursWarning,
