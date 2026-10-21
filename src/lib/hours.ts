@@ -26,3 +26,17 @@ export function summarizeHours(
     requiredHours > 0 ? Math.min(100 - approvedPct, (submittedHours / requiredHours) * 100) : 0
   return { approvedHours, submittedHours, requiredHours, approvedPct, submittedPct }
 }
+
+export function sameHourLogRow(a: LocalHourLog, b: LocalHourLog): boolean {
+  return (
+    a.id === b.id &&
+    a.date === b.date &&
+    a.startTime === b.startTime &&
+    a.endTime === b.endTime &&
+    a.hours === b.hours &&
+    a.activity === b.activity &&
+    a.status === b.status &&
+    a.syncState === b.syncState &&
+    a.reviewNote === b.reviewNote
+  )
+}
