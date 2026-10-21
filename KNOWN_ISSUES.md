@@ -17,18 +17,6 @@ hook de formulario, los helpers puros que ya casi están separados
 (`formatDateForConfirmation`, `computeDurationLabel`) y un hook de persistencia aparte. No
 llegamos. (E6-01 ya removió las dos copias de la validación de horas; el resto queda.)
 
-## D-10 · Los hooks que tocan Dexie no tienen tests
-
-`src/offline/hooks/`: `useHourLogs.ts`, `usePlacement.ts`, `useSyncStatus.ts`. La
-excepción es `useOnline.ts`, que sí tiene spec.
-
-No supimos testear hooks que tocan IndexedDB y lo dejamos así. Todos usan `useLiveQuery` de
-`dexie-react-hooks` contra la base real de Dexie; en otras partes del repo probamos con
-`fake-indexeddb` (mira `offline/db.spec.ts` como referencia) y no debería ser muy distinto
-hacerlo acá, pero nunca nos sentamos a escribirlos. Si vas a tocar cómo se leen las horas o
-la plaza del estudiante desde la UI, vas a ciegas. No hay red de seguridad que te avise si
-rompiste algo.
-
 ## D-11 · No se pueden editar horas desde la UI
 
 `src/components/HourLogForm.tsx`, `src/pages/HourLogsPage.tsx`.
