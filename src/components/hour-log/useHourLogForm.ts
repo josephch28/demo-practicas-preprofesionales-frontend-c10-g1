@@ -1,0 +1,79 @@
+import { type FormEvent, useReducer } from 'react'
+import { db } from '@/offline/db'
+import { enqueue } from '@/offline/sync/push'
+import {
+  buildHourLogPushOperation,
+  buildLocalHourLog,
+  computeDurationLabel,
+  formatDateForConfirmation,
+  validateHourLogForm,
+  validateHourLogInput,
+} from './hour-log-form-helpers'
+import {
+  getInitialFormState,
+  hourLogFormReducer,
+  type HourLogFormValues,
+} from './hour-log-form-state'
+
+export interface UseHourLogFormOptions {
+  placementId: number
+  onSaved?: () => void
+}
+
+export function useHourLogForm({ placementId, onSaved }: UseHourLogFormOptions) {
+  const [state, dispatch] = useReducer(hourLogFormReducer, undefined, getInitialFormState)
+
+  const confirmationLabel = formatDateForConfirmation(state.date)
+  const durationLabel = computeDurationLabel(state.startTime, state.endTime)
+  const liveHoursWarning = state.hours
+    ? validateHourLogInput(state.hours, state.startTime, state.endTime)
+    : null
+
+  function setField(field: keyof HourLogFormValues, value: string) {
+    dispatch({ type: 'SET_FIELD', field, value })
+  }
+
+  function resetForm() {
+    dispatch({ type: 'RESET' })
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const nextErrors = validateHourLogForm(state)
+    dispatch({ type: 'SET_ERRORS', errors: nextErrors })
+
+    if (Object.keys(nextErrors).length > 0) {
+      return
+    }
+
+    dispatch({ type: 'SUBMIT_START' })
+
+    const row = buildLocalHourLog(placementId, state)
+    const op = buildHourLogPushOperation(row)
+
+    try {
+      await db.transaction('rw', [db.hourLogs, db.outbox], async () => {
+        await db.hourLogs.add(row)
+        await enqueue(op)
+      })
+
+      dispatch({ type: 'SUBMIT_SUCCESS' })
+      onSaved?.()
+    } catch {
+      dispatch({
+        type: 'SUBMIT_ERROR',
+        error: 'No se pudo guardar el registro en este dispositivo. Intenta de nuevo.',
+      })
+    }
+  }
+
+  return {
+    ...state,
+    confirmationLabel,
+    durationLabel,
+    liveHoursWarning,
+    setField,
+    resetForm,
+    handleSubmit,
+  }
+}
