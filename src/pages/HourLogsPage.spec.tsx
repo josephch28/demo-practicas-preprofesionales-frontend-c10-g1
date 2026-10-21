@@ -11,7 +11,20 @@ const { usePlacementMock, useHourLogsMock, hourLogsUpdateMock } = vi.hoisted(() 
 vi.mock('@/offline/hooks/usePlacement', () => ({ usePlacement: () => usePlacementMock() }))
 vi.mock('@/offline/hooks/useHourLogs', () => ({ useHourLogs: (...args: unknown[]) => useHourLogsMock(...args) }))
 
+import { formatShortDate } from '@/lib/date'
+import { summarizeHours } from '@/lib/hours'
 import type { LocalHourLog } from '@/offline/db'
+
+// Envuelven la implementación real: sirven para contar llamadas sin cambiar el resultado.
+vi.mock('@/lib/hours', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/hours')>()
+  return { ...actual, summarizeHours: vi.fn(actual.summarizeHours) }
+})
+
+vi.mock('@/lib/date', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/date')>()
+  return { ...actual, formatShortDate: vi.fn(actual.formatShortDate) }
+})
 
 vi.mock('@/offline/db', () => ({
   db: { hourLogs: { update: hourLogsUpdateMock } },
@@ -100,5 +113,71 @@ describe('HourLogsPage', () => {
     fireEvent.click(screen.getByText('Entendido'))
 
     expect(hourLogsUpdateMock).toHaveBeenCalledWith(99, { syncState: 'synced', reviewNote: null })
+  })
+
+  describe('rendimiento con muchos registros (E6)', () => {
+    const manyLogs = () => Array.from({ length: 50 }, (_, i) => makeLog({ id: i + 1, activity: `Actividad ${i + 1}` }))
+
+    // Criterio: "los totales no se recalculan en cada renderizado".
+    it('no recalcula los totales al re-renderizar con los mismos registros', () => {
+      const logs = manyLogs()
+      usePlacementMock.mockReturnValue(PLACEMENT)
+      useHourLogsMock.mockReturnValue(logs)
+      const { rerender } = render(<HourLogsPage />)
+      expect(summarizeHours).toHaveBeenCalledTimes(1)
+      rerender(<HourLogsPage />)
+      rerender(<HourLogsPage />)
+      expect(summarizeHours).toHaveBeenCalledTimes(1)
+
+      // sí se recalculan cuando los registros cambian de verdad
+      useHourLogsMock.mockReturnValue([...logs, makeLog({ id: 999, status: 'APPROVED' })])
+      rerender(<HourLogsPage />)
+      expect(summarizeHours).toHaveBeenCalledTimes(2)
+    })
+
+    // Criterio: "el comportamiento no cambia" + rendimiento: una sola fila
+    // actualizada por la sincronización no debe re-dibujar las otras 49.
+    it('al cambiar un solo registro re-dibuja solo esa fila, no toda la lista', () => {
+      const logs = manyLogs()
+      usePlacementMock.mockReturnValue(PLACEMENT)
+      useHourLogsMock.mockReturnValue(logs)
+      const { rerender } = render(<HourLogsPage />)
+      expect(formatShortDate).toHaveBeenCalledTimes(50)
+      vi.mocked(formatShortDate).mockClear()
+
+      // Dexie entrega objetos nuevos en cada emisión: se clonan los 50 y cambia uno.
+      const next = logs.map((log) => ({ ...log }))
+      next[10] = { ...next[10], activity: 'Actividad modificada por la sincronización' }
+      useHourLogsMock.mockReturnValue(next)
+      rerender(<HourLogsPage />)
+      expect(formatShortDate).toHaveBeenCalledTimes(1)
+      expect(screen.getByText('Actividad modificada por la sincronización')).toBeInTheDocument()
+      expect(screen.queryByText('Actividad 11')).not.toBeInTheDocument()
+    })
+
+    it('si la emisión trae los mismos datos en objetos nuevos, no re-dibuja ninguna fila', () => {
+      const logs = manyLogs()
+      usePlacementMock.mockReturnValue(PLACEMENT)
+      useHourLogsMock.mockReturnValue(logs)
+      const { rerender } = render(<HourLogsPage />)
+      vi.mocked(formatShortDate).mockClear()
+      useHourLogsMock.mockReturnValue(logs.map((log) => ({ ...log })))
+      rerender(<HourLogsPage />)
+      expect(formatShortDate).not.toHaveBeenCalled()
+    })
+
+    it('muestra los registros más recientes primero, igual que antes', () => {
+      usePlacementMock.mockReturnValue(PLACEMENT)
+      // useHourLogs los entrega ascendentes por fecha
+      useHourLogsMock.mockReturnValue([
+        makeLog({ id: 1, activity: 'Primera jornada' }),
+        makeLog({ id: 2, activity: 'Segunda jornada' }),
+        makeLog({ id: 3, activity: 'Tercera jornada' }),
+      ])
+      render(<HourLogsPage />)
+      const text = document.body.textContent ?? ''
+      expect(text.indexOf('Tercera jornada')).toBeLessThan(text.indexOf('Segunda jornada'))
+      expect(text.indexOf('Segunda jornada')).toBeLessThan(text.indexOf('Primera jornada'))
+    })
   })
 })
