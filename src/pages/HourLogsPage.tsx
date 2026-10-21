@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { HourLogForm } from '@/components/HourLogForm'
 import { HoursProgressPanel } from '@/components/HoursProgressPanel'
 import { PageHeader } from '@/components/PageHeader'
@@ -17,18 +17,12 @@ import {
 } from '@/components/ui/dialog'
 import { Ledger, LedgerHeaderRow } from '@/components/ledger/Ledger'
 import { LedgerRow } from '@/components/ledger/LedgerRow'
-import { parseLocalDate } from '@/lib/date'
-import { type HoursSummary, summarizeHours } from '@/lib/hours'
+import { formatShortDate } from '@/lib/date'
+import { type HoursSummary, sameHourLogRow, summarizeHours } from '@/lib/hours'
 import { plural } from '@/lib/utils'
 import type { LocalHourLog } from '@/offline/db'
 import { useHourLogs } from '@/offline/hooks/useHourLogs'
 import { usePlacement } from '@/offline/hooks/usePlacement'
-
-function formatDate(dateValue: string): string {
-  const parsed = parseLocalDate(dateValue)
-  if (Number.isNaN(parsed.getTime())) return dateValue
-  return new Intl.DateTimeFormat('es-EC', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
-}
 
 function LedgerColumnHeader() {
   return (
@@ -47,7 +41,32 @@ function submittedNote(hours: HoursSummary) {
   return <span className="text-pending"> · {hours.submittedHours.toFixed(1)} sin aprobar</span>
 }
 
-function HourLogsList({ logs }: { logs: LocalHourLog[] }) {
+const HourLogRow = memo(
+  function HourLogRow({ log }: { log: LocalHourLog }) {
+    return (
+      <div>
+        <LedgerRow syncState={log.syncState}>
+          <span className="font-data text-14 text-ink sm:w-28">{formatShortDate(log.date)}</span>
+          <span className="font-data text-13 text-inkSoft sm:w-28">
+            {log.startTime}–{log.endTime}
+          </span>
+          <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
+          <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
+          <span className="sm:w-32 sm:text-right">
+            <StatusBadge status={log.status} />
+          </span>
+        </LedgerRow>
+        <ReviewNoteBanner log={log} />
+      </div>
+    )
+  },
+  (prev, next) => sameHourLogRow(prev.log, next.log),
+)
+
+const HourLogsList = memo(function HourLogsList({ logs }: { logs: LocalHourLog[] }) {
+  // Más reciente primero. Va antes del return anticipado (regla de los hooks).
+  const newestFirst = useMemo(() => logs.slice().reverse(), [logs])
+
   if (logs.length === 0) {
     return (
       <EmptyState
@@ -59,28 +78,12 @@ function HourLogsList({ logs }: { logs: LocalHourLog[] }) {
 
   return (
     <Ledger header={<LedgerColumnHeader />}>
-      {logs
-        .slice()
-        .reverse()
-        .map((log) => (
-          <div key={log.id}>
-            <LedgerRow syncState={log.syncState}>
-              <span className="font-data text-14 text-ink sm:w-28">{formatDate(log.date)}</span>
-              <span className="font-data text-13 text-inkSoft sm:w-28">
-                {log.startTime}–{log.endTime}
-              </span>
-              <span className="font-data text-14 text-ink sm:w-14">{log.hours}</span>
-              <span className="flex-1 text-14 text-inkBody">{log.activity}</span>
-              <span className="sm:w-32 sm:text-right">
-                <StatusBadge status={log.status} />
-              </span>
-            </LedgerRow>
-            <ReviewNoteBanner log={log} />
-          </div>
-        ))}
+      {newestFirst.map((log) => (
+        <HourLogRow key={log.id} log={log} />
+      ))}
     </Ledger>
   )
-}
+})
 
 function NewHourLogDialog({ placementId }: { placementId: number }) {
   const [open, setOpen] = useState(false)
@@ -108,6 +111,8 @@ function NewHourLogDialog({ placementId }: { placementId: number }) {
 export function HourLogsPage() {
   const placement = usePlacement()
   const logs = useHourLogs(placement?.id ?? -1)
+  const requiredHours = placement?.requiredHours ?? 0
+  const hours = useMemo(() => summarizeHours(logs, requiredHours), [logs, requiredHours])
 
   if (placement === undefined) {
     return <LoadingState>Cargando tu práctica…</LoadingState>
@@ -125,10 +130,6 @@ export function HourLogsPage() {
   if (logs === undefined) {
     return <LoadingState>Cargando registros de horas…</LoadingState>
   }
-
-  // Totales recalculados en cada render a propósito: con esta pantalla no
-  // hace falta más que sumar un arreglo, así que no se envuelve en useMemo.
-  const hours = summarizeHours(logs, placement.requiredHours)
 
   return (
     <>
