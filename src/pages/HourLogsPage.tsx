@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/PageHeader'
 import { EmptyState, LoadingState, Panel } from '@/components/Panel'
 import { ReviewNoteBanner } from '@/components/ReviewNoteBanner'
 import { StatusBadge } from '@/components/StatusBadge'
+import { VoiceNotesPanel } from '@/components/VoiceNotesPanel'
 import { VoiceRecordButton } from '@/components/VoiceRecordButton'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,7 +22,7 @@ import { LedgerRow } from '@/components/ledger/LedgerRow'
 import { formatShortDate } from '@/lib/date'
 import { type HoursSummary, sameHourLogRow, summarizeHours } from '@/lib/hours'
 import { plural } from '@/lib/utils'
-import type { LocalHourLog } from '@/offline/db'
+import type { LocalHourLog, LocalVoiceNote } from '@/offline/db'
 import { useHourLogs } from '@/offline/hooks/useHourLogs'
 import { usePlacement } from '@/offline/hooks/usePlacement'
 
@@ -112,6 +113,7 @@ function NewHourLogDialog({ placementId }: { placementId: number }) {
 export function HourLogsPage() {
   const placement = usePlacement()
   const logs = useHourLogs(placement?.id ?? -1)
+  const [, setReviewingNote] = useState<LocalVoiceNote | null>(null)
   const requiredHours = placement?.requiredHours ?? 0
   const hours = useMemo(() => summarizeHours(logs, requiredHours), [logs, requiredHours])
 
@@ -144,6 +146,8 @@ export function HourLogsPage() {
           </>
         }
       />
+
+      <VoiceNotesPanel onReview={setReviewingNote} />
 
       <HoursProgressPanel hours={hours} note={submittedNote(hours)} />
 
