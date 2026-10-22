@@ -60,6 +60,33 @@ export interface OutboxEntry {
   lastError: string | null
 }
 
+export type VoiceNoteStatus = 'pending' | 'processing' | 'draft' | 'failed'
+
+export interface VoiceNoteDraft {
+  date?: string
+  startTime?: string
+  endTime?: string
+  hours?: number
+  activity?: string
+}
+
+export interface LocalVoiceNote {
+  id: number
+  audio: Blob
+  mimeType: string
+  durationMs: number
+  /** ISO 8601. */
+  recordedAt: string
+  status: VoiceNoteStatus
+  attempts: number
+  transcript?: string
+  /** Borrador de jornada que devuelve el servidor al procesar la nota. */
+  draft?: VoiceNoteDraft
+  /** Nombres de los campos del borrador que el servidor no pudo inferir. */
+  missing?: string[]
+  error?: string
+}
+
 export const db = new Dexie('practicas') as Dexie & {
   placements: EntityTable<LocalPlacement, 'id'>
   hourLogs: EntityTable<LocalHourLog, 'id'>
@@ -67,6 +94,7 @@ export const db = new Dexie('practicas') as Dexie & {
   evaluations: EntityTable<LocalEvaluation, 'id'>
   outbox: EntityTable<OutboxEntry, 'id'>
   meta: EntityTable<{ key: string; value: string }, 'key'>
+  voiceNotes: EntityTable<LocalVoiceNote, 'id'>
 }
 
 db.version(1).stores({
@@ -76,4 +104,8 @@ db.version(1).stores({
   evaluations: 'id, placementId, kind, updatedAt',
   outbox: '++id, clientOpId, entity, createdAt',
   meta: 'key',
+})
+
+db.version(2).stores({
+  voiceNotes: '++id, status, recordedAt',
 })

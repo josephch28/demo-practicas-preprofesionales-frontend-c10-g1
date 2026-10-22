@@ -1,12 +1,11 @@
 import { db } from '@/offline/db'
+import { processVoiceNotes } from '@/offline/voice/process'
 import { pullChanges } from './pull'
 import { pushOutbox } from './push'
 import { computeBackoffDelay, DEFAULT_RETRY_CONFIG, type RetryConfig } from './retry'
 import { getStatus, setStatus } from './status'
 
-const SYNC_INTERVAL_MS = 60_000
-// Tope de rondas de pull por corrida: evita que un servidor que siempre
-// responda hasMore:true cuelgue el scheduler en un bucle infinito.
+const SYNC_INTERVAL_MS = 30_000
 const MAX_PULL_ROUNDS = 20
 
 function hasSession(): boolean {
@@ -14,10 +13,7 @@ function hasSession(): boolean {
 }
 
 let currentSync: Promise<void> | null = null
-
-export function getCurrentSync(): Promise<void> | null {
-  return currentSync
-}
+export function getCurrentSync(): Promise<void> | null { return currentSync }
 let retryTimer: ReturnType<typeof setTimeout> | null = null
 let retryAttempt = 0
 let currentRetryConfig: RetryConfig = { ...DEFAULT_RETRY_CONFIG }
@@ -25,10 +21,7 @@ let currentRetryConfig: RetryConfig = { ...DEFAULT_RETRY_CONFIG }
 export function setRetryConfig(config: Partial<RetryConfig>): void {
   currentRetryConfig = { ...currentRetryConfig, ...config }
 }
-
-export function getRetryConfig(): RetryConfig {
-  return { ...currentRetryConfig }
-}
+export function getRetryConfig(): RetryConfig { return { ...currentRetryConfig } }
 
 export function cancelRetry(): void {
   if (retryTimer !== null) {
@@ -44,10 +37,7 @@ export function resetRetryState(): void {
 }
 
 export function getRetryState(): { attempt: number; hasScheduledRetry: boolean } {
-  return {
-    attempt: retryAttempt,
-    hasScheduledRetry: retryTimer !== null,
-  }
+  return { attempt: retryAttempt, hasScheduledRetry: retryTimer !== null }
 }
 
 async function scheduleRetryIfEligible(): Promise<void> {
@@ -88,10 +78,14 @@ async function runSync(): Promise<void> {
 
     await pushOutbox(currentRetryConfig.maxAttempts)
 
+    try {
+      await processVoiceNotes()
+    } catch (err) {
+      console.error('procesamiento de notas de voz falló', err)
+    }
+
     // E1-07: el cierre del ciclo emite un solo setStatus con syncing,
-    // lastSyncAt y pending juntos. Antes eran dos llamadas separadas por
-    // un await db.outbox.count(), y en esa ventana el store dejaba ver
-    // syncing:false con el pending viejo (D-08).
+    // lastSyncAt y pending juntos.
     const pending = await db.outbox.count()
     setStatus({ syncing: false, lastSyncAt: new Date().toISOString(), pending })
 
@@ -108,12 +102,7 @@ async function runSync(): Promise<void> {
   }
 }
 
-// Corre pull + push. Si ya hay una corrida en curso EN ESTA pestaña, la
-// reutiliza en vez de duplicarla. Si `syncing` ya está en `true` porque
-// OTRA pestaña lo puso ahí (nos llega por BroadcastChannel vía status.ts),
-// no arrancamos una corrida nueva sobre la misma cola: la dejamos para el
-// próximo ciclo. `currentSync` por sí solo no alcanza porque cada pestaña
-// tiene su propia copia de este módulo.
+// Corre pull + push. Reutiliza la corrida en curso o evita duplicar entre pestañas.
 export function syncNow(): Promise<void> {
   cancelRetry()
   if (currentSync) return currentSync
@@ -125,11 +114,28 @@ export function syncNow(): Promise<void> {
   return currentSync
 }
 
-/**
- * Arranca el scheduler: sincroniza al montar, al recuperar conexión, y cada
- * 60s. Debe llamarse una sola vez (desde un useEffect en AppLayout) — llamar
- * en cada hook crearía un timer y un listener por cada consumidor.
- */
+let rerunQueued = false
+
+// Sincroniza ya, sin esperar al intervalo, cuando se acaba de encolar algo.
+// Sin conexión o sin sesión no hace nada: lo tomará el siguiente ciclo. Si hay
+// una corrida en curso (que pudo no ver lo nuevo) pide una más al terminar.
+export function syncSoon(): Promise<void> {
+  const online = getStatus().online && (typeof navigator === 'undefined' || navigator.onLine !== false)
+  if (!online || !hasSession()) return Promise.resolve()
+
+  const running = currentSync
+  if (!running) return syncNow()
+  if (rerunQueued) return running
+
+  rerunQueued = true
+  return running.then(() => {
+    rerunQueued = false
+    return syncNow()
+  })
+}
+
+// Arranca el scheduler: sincroniza al montar, al recuperar conexión, al volver a
+// la pestaña y cada 30 s.
 export function startSync(): () => void {
   void syncNow()
 
@@ -143,8 +149,13 @@ export function startSync(): () => void {
     cancelRetry()
   }
 
+  const handleVisible = () => {
+    if (document.visibilityState === 'visible') void syncSoon()
+  }
+
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
+  document.addEventListener('visibilitychange', handleVisible)
 
   const intervalId = window.setInterval(() => {
     void syncNow()
@@ -153,6 +164,7 @@ export function startSync(): () => void {
   return () => {
     window.removeEventListener('online', handleOnline)
     window.removeEventListener('offline', handleOffline)
+    document.removeEventListener('visibilitychange', handleVisible)
     window.clearInterval(intervalId)
     cancelRetry()
   }

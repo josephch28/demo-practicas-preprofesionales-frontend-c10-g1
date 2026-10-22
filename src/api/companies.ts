@@ -48,6 +48,20 @@ export interface OfferApplication {
   student: OfferApplicant
 }
 
+/** Una sugerencia de la IA para una postulación: afinidad de 0 a 100 y por qué. */
+export interface ApplicationSuggestion {
+  applicationId: number
+  score: number
+  reason: string
+}
+
+export interface ApplicationRanking {
+  offerId: number
+  ranking: ApplicationSuggestion[]
+  unranked: number[]
+  truncated: boolean
+}
+
 export type ApplicationDecision = Extract<ApplicationStatus, 'INTERVIEW' | 'ACCEPTED' | 'REJECTED'>
 
 /** Empresas registradas. No sincronizable: siempre requiere red. */
@@ -85,4 +99,9 @@ export function decideApplication(id: number, status: ApplicationDecision): Prom
     method: 'PATCH',
     body: JSON.stringify({ status }),
   })
+}
+
+/** Pide a la IA un orden de afinidad de las postulaciones pendientes. Requiere red. */
+export function rankApplicationsForOffer(offerId: number): Promise<ApplicationRanking> {
+  return api<ApplicationRanking>(`/offers/${offerId}/applications/rank`, { method: 'POST' })
 }
