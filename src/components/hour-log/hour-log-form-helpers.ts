@@ -1,6 +1,7 @@
-import type { LocalHourLog, OutboxEntry } from '@/offline/db'
 import { validateHoursValue } from '@/offline/hour-log-rules'
 import type { FormErrors, HourLogFormValues } from './hour-log-form-state'
+
+export { buildHourLogPushOperation, buildLocalHourLog } from '@/offline/createLocalHourLog'
 
 export function todayAsInputValue(): string {
   const now = new Date()
@@ -68,48 +69,4 @@ export function validateHourLogForm(values: HourLogFormValues): FormErrors {
     errors.hours = hoursMessage
   }
   return errors
-}
-
-export function buildLocalHourLog(
-  placementId: number,
-  values: HourLogFormValues,
-  options?: { id?: number; nowIso?: string },
-): LocalHourLog {
-  return {
-    id: options?.id ?? -Date.now(),
-    placementId,
-    date: values.date,
-    startTime: values.startTime,
-    endTime: values.endTime,
-    hours: Number(values.hours),
-    activity: values.activity.trim(),
-    status: 'SUBMITTED',
-    reviewNote: null,
-    version: 1,
-    updatedAt: options?.nowIso ?? new Date().toISOString(),
-    syncState: 'local',
-  }
-}
-
-export function buildHourLogPushOperation(
-  row: LocalHourLog,
-): Omit<OutboxEntry, 'id' | 'clientOpId' | 'createdAt' | 'attempts' | 'lastError'> {
-  return {
-    entity: 'hourLog',
-    op: 'create',
-    payload: {
-      id: row.id,
-      placementId: row.placementId,
-      date: row.date,
-      startTime: row.startTime,
-      endTime: row.endTime,
-      hours: row.hours,
-      activity: row.activity,
-      status: row.status,
-      reviewNote: row.reviewNote,
-      version: row.version,
-      updatedAt: row.updatedAt,
-    },
-    baseVersion: null,
-  }
 }
