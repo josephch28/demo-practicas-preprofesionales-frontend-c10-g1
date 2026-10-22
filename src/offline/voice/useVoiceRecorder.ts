@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { processVoiceNotesNow } from '@/offline/voice/process'
 import { addVoiceNote } from '@/offline/voice/voiceNotes'
 
 export type VoiceRecorderState = 'idle' | 'recording' | 'saving' | 'error'
@@ -110,6 +111,7 @@ export function useVoiceRecorder() {
       } catch {
         return fail(VOICE_RECORDER_MESSAGES.saveFailed)
       }
+      void processVoiceNotesNow()
       if (!mountedRef.current) return
       setElapsedMs(0)
       setState('idle')
