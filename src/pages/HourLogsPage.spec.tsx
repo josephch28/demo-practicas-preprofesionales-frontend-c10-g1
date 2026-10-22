@@ -81,6 +81,14 @@ describe('HourLogsPage', () => {
     expect(screen.getByText(/Todavía no has registrado horas/i)).toBeInTheDocument()
   })
 
+  it('shows the voice record button next to "Registrar horas"', () => {
+    usePlacementMock.mockReturnValue(PLACEMENT)
+    useHourLogsMock.mockReturnValue([])
+    render(<HourLogsPage />)
+    expect(screen.getByRole('button', { name: 'Dictar horas' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Registrar horas' })).toBeInTheDocument()
+  })
+
   it('shows the review note banner when a log has syncState failed', () => {
     usePlacementMock.mockReturnValue(PLACEMENT)
     useHourLogsMock.mockReturnValue([
