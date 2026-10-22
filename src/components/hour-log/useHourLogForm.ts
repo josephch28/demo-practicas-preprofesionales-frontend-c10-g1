@@ -1,9 +1,6 @@
 import { type FormEvent, useReducer } from 'react'
-import { db } from '@/offline/db'
-import { enqueue } from '@/offline/sync/push'
+import { createLocalHourLog } from '@/offline/createLocalHourLog'
 import {
-  buildHourLogPushOperation,
-  buildLocalHourLog,
   computeDurationLabel,
   formatDateForConfirmation,
   validateHourLogForm,
@@ -43,14 +40,9 @@ export function useHourLogForm({ placementId, onSaved }: UseHourLogFormOptions) 
     if (Object.keys(nextErrors).length > 0) return
 
     dispatch({ type: 'SUBMIT_START' })
-    const row = buildLocalHourLog(placementId, state)
-    const op = buildHourLogPushOperation(row)
 
     try {
-      await db.transaction('rw', [db.hourLogs, db.outbox], async () => {
-        await db.hourLogs.add(row)
-        await enqueue(op)
-      })
+      await createLocalHourLog(placementId, state)
       dispatch({ type: 'SUBMIT_SUCCESS' })
       onSaved?.()
     } catch {
