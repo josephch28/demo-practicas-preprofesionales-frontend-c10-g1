@@ -1,5 +1,6 @@
 import { db, type LocalHourLog, type OutboxEntry } from '@/offline/db'
 import { enqueue } from '@/offline/sync/push'
+import { syncSoon } from '@/offline/sync/scheduler'
 
 export interface LocalHourLogValues {
   date: string
@@ -100,6 +101,9 @@ export async function createLocalHourLog(
     await db.hourLogs.add(row)
     await enqueue(op)
   })
+
+  // Con conexión sale ya; sin ella queda en la cola para el siguiente ciclo.
+  void syncSoon()
 
   return { ...row, syncState: 'queued' }
 }

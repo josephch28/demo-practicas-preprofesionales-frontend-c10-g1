@@ -211,8 +211,8 @@ describe('E1-06: Scheduler con reintentos de espera creciente (backoff exponenci
     await getCurrentSync()
     expect(mockedPush).toHaveBeenCalledTimes(1)
 
-    // Avanzamos 60s (SYNC_INTERVAL_MS)
-    await vi.advanceTimersByTimeAsync(60000)
+    // Avanzamos 30s (SYNC_INTERVAL_MS)
+    await vi.advanceTimersByTimeAsync(30000)
     await getCurrentSync()
     expect(mockedPush).toHaveBeenCalledTimes(2)
 
