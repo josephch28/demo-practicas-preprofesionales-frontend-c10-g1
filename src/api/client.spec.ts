@@ -13,6 +13,19 @@ describe('api', () => {
 
     const [, init] = fetchMock.mock.calls[0]
     expect(init.headers.Authorization).toBe('Bearer tok')
+    expect(init.headers['Content-Type']).toBe('application/json')
+  })
+
+  it('does not set Content-Type header when body is FormData', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const formData = new FormData()
+    formData.append('key', 'value')
+    await api('/upload', { method: 'POST', body: formData })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect(init.headers['Content-Type']).toBeUndefined()
   })
 
   it('throws ApiError carrying the backend message', async () => {
