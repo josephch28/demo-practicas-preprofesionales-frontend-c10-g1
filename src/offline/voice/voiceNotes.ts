@@ -18,14 +18,17 @@ export function addVoiceNote(input: NewVoiceNote): Promise<number> {
 }
 
 export function listVoiceNotes(): Promise<LocalVoiceNote[]> {
+  if (!db?.voiceNotes) return Promise.resolve([])
   return db.voiceNotes.orderBy('recordedAt').reverse().toArray()
 }
 
 export async function updateVoiceNote(id: number, changes: VoiceNoteChanges): Promise<boolean> {
+  if (!db?.voiceNotes) return false
   const updated = await db.voiceNotes.update(id, changes)
   return updated > 0
 }
 
 export function deleteVoiceNote(id: number): Promise<void> {
+  if (!db?.voiceNotes) return Promise.resolve()
   return db.voiceNotes.delete(id)
 }
