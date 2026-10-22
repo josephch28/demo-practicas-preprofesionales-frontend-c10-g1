@@ -33,56 +33,25 @@ export interface VoiceDraftDialogProps {
   placementId?: number
 }
 
-function readDraftField(
-  missing: Set<string>,
-  field: VoiceDraftFieldName,
-  raw: string | number | undefined,
-): string {
-  if (missing.has(field) || raw === undefined || raw === null) return ''
-  return String(raw)
-}
-
 function initialValuesFromNote(note: LocalVoiceNote | null): HourLogFormValues {
   const missing = new Set(note?.missing ?? [])
   const draft = note?.draft
+  const read = (f: VoiceDraftFieldName, v: string | number | undefined) =>
+    missing.has(f) || v == null ? '' : String(v)
 
   return {
-    date: readDraftField(missing, 'date', draft?.date),
-    startTime: readDraftField(missing, 'startTime', draft?.startTime),
-    endTime: readDraftField(missing, 'endTime', draft?.endTime),
-    hours: readDraftField(missing, 'hours', draft?.hours),
-    activity: readDraftField(missing, 'activity', draft?.activity),
+    date: read('date', draft?.date),
+    startTime: read('startTime', draft?.startTime),
+    endTime: read('endTime', draft?.endTime),
+    hours: read('hours', draft?.hours),
+    activity: read('activity', draft?.activity),
   }
-}
-
-function isFieldIncomplete(values: HourLogFormValues, field: VoiceDraftFieldName): boolean {
-  return values[field].trim().length === 0
-}
-
-function computeHoursWarning(values: HourLogFormValues): string | null {
-  if (!values.hours) return null
-  return (
-    validateHoursValue(values.hours) ??
-    validateHourLogInput(values.hours, values.startTime, values.endTime)
-  )
-}
-
-interface DraftFieldProps {
-  id: string
-  field: VoiceDraftFieldName
-  label: string
-  type?: 'date' | 'time' | 'number' | 'textarea'
-  value: string
-  missing: boolean
-  error?: string
-  warning?: string | null
-  onChange: (field: VoiceDraftFieldName, value: string) => void
 }
 
 function DraftControl({
   id,
   field,
-  type = 'date',
+  type,
   value,
   missing,
   invalid,
@@ -90,14 +59,14 @@ function DraftControl({
 }: {
   id: string
   field: VoiceDraftFieldName
-  type?: 'date' | 'time' | 'number' | 'textarea'
+  type: string
   value: string
   missing: boolean
   invalid: boolean
-  onChange: (field: VoiceDraftFieldName, value: string) => void
+  onChange: (f: VoiceDraftFieldName, v: string) => void
 }) {
-  const highlight = missing ? 'border-pending bg-chipPending/30 ring-1 ring-pending' : ''
-  const missingAttr = missing ? 'true' : undefined
+  const cls = cn('font-data', missing && 'border-pending bg-chipPending/30 ring-1 ring-pending')
+  const dataMissing = missing ? 'true' : undefined
 
   if (type === 'textarea') {
     return (
@@ -107,8 +76,8 @@ function DraftControl({
         value={value}
         onChange={(e) => onChange(field, e.target.value)}
         aria-invalid={invalid}
-        data-missing={missingAttr}
-        className={cn(highlight)}
+        data-missing={dataMissing}
+        className={cls}
       />
     )
   }
@@ -122,23 +91,38 @@ function DraftControl({
       value={value}
       onChange={(e) => onChange(field, e.target.value)}
       aria-invalid={invalid}
-      data-missing={missingAttr}
-      className={cn('font-data', type === 'number' && 'tabular-nums', highlight)}
+      data-missing={dataMissing}
+      className={cn(cls, type === 'number' && 'tabular-nums')}
     />
   )
 }
 
-function DraftField(props: DraftFieldProps) {
-  const { id, field, label, type, value, missing, error, warning, onChange } = props
-  const invalid = Boolean(error) || missing
-
+function DraftField({
+  id,
+  field,
+  label,
+  type = 'text',
+  value,
+  missing,
+  error,
+  warning,
+  onChange,
+}: {
+  id: string
+  field: VoiceDraftFieldName
+  label: string
+  type?: string
+  value: string
+  missing: boolean
+  error?: string
+  warning?: string | null
+  onChange: (f: VoiceDraftFieldName, v: string) => void
+}) {
   return (
     <div className="flex flex-col gap-1.5" data-field={id} data-missing={missing ? 'true' : undefined}>
       <div className="flex items-center justify-between gap-2">
         <Label htmlFor={id}>{label}</Label>
-        {missing ? (
-          <span className="font-data text-11 font-semibold text-pending">Falta completar</span>
-        ) : null}
+        {missing ? <span className="font-data text-11 font-semibold text-pending">Falta completar</span> : null}
       </div>
       <DraftControl
         id={id}
@@ -146,15 +130,11 @@ function DraftField(props: DraftFieldProps) {
         type={type}
         value={value}
         missing={missing}
-        invalid={invalid}
+        invalid={Boolean(error) || missing}
         onChange={onChange}
       />
       {warning && !error ? <p className="text-12 text-pending">{warning}</p> : null}
-      {error ? (
-        <p id={`${id}-error`} role="alert" className="text-12 text-void">
-          {error}
-        </p>
-      ) : null}
+      {error ? <p id={`${id}-error`} role="alert" className="text-12 text-void">{error}</p> : null}
     </div>
   )
 }
@@ -173,27 +153,25 @@ export function VoiceDraftDialog({ note, onClose, placementId }: VoiceDraftDialo
   }, [note])
 
   const missingSet = new Set(note?.missing ?? [])
-  const isMissing = (field: VoiceDraftFieldName): boolean =>
-    missingSet.has(field) && isFieldIncomplete(values, field)
+  const isMissing = (f: VoiceDraftFieldName) => missingSet.has(f) && values[f].trim().length === 0
+  const hasIncomplete = DRAFT_FIELDS.some((f) => values[f].trim().length === 0)
+  const hoursWarning = values.hours
+    ? (validateHoursValue(values.hours) ?? validateHourLogInput(values.hours, values.startTime, values.endTime))
+    : null
 
-  const hasAnyIncompleteField = DRAFT_FIELDS.some((field) => isFieldIncomplete(values, field))
-  const hoursWarning = computeHoursWarning(values)
-
-  const updateField = (field: VoiceDraftFieldName, nextValue: string) => {
-    setValues((prev) => ({ ...prev, [field]: nextValue }))
-    setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev))
+  const updateField = (f: VoiceDraftFieldName, v: string) => {
+    setValues((prev) => ({ ...prev, [f]: v }))
+    setErrors((prev) => (prev[f] ? { ...prev, [f]: undefined } : prev))
   }
 
-  async function handleConfirm(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-
+  async function handleConfirm(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
     const nextErrors = validateHourLogForm(values)
     setErrors(nextErrors)
     if (Object.keys(nextErrors).length > 0) return
 
     setSubmitting(true)
     setSubmitError(null)
-
     try {
       await createLocalHourLog({
         placementId,
@@ -211,97 +189,31 @@ export function VoiceDraftDialog({ note, onClose, placementId }: VoiceDraftDialo
     }
   }
 
-  const transcriptText = note?.transcript || 'Sin transcripción disponible'
-
   return (
     <Dialog open={note !== null} onOpenChange={onClose}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Revisar borrador de horas</DialogTitle>
-          <DialogDescription>
-            Verifica y corrige los datos antes de confirmar tu registro.
-          </DialogDescription>
+          <DialogDescription>Verifica y corrige los datos antes de confirmar tu registro.</DialogDescription>
         </DialogHeader>
-
         <form onSubmit={handleConfirm} noValidate>
           <DialogBody>
             <div className="rounded-lg border border-line bg-soft px-3.5 py-2.5">
               <p className="font-display text-12 font-semibold text-inkMid">Lo que entendió Yura</p>
-              <p className="mt-1 text-13 text-inkBody">{transcriptText}</p>
+              <p className="mt-1 text-13 text-inkBody">{note?.transcript || 'Sin transcripción disponible'}</p>
             </div>
-
-            <DraftField
-              id="voicedraft-date"
-              field="date"
-              label="Fecha"
-              type="date"
-              value={values.date}
-              missing={isMissing('date')}
-              error={errors.date}
-              onChange={updateField}
-            />
-
+            <DraftField id="voicedraft-date" field="date" label="Fecha" type="date" value={values.date} missing={isMissing('date')} error={errors.date} onChange={updateField} />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <DraftField
-                id="voicedraft-start"
-                field="startTime"
-                label="Hora de inicio"
-                type="time"
-                value={values.startTime}
-                missing={isMissing('startTime')}
-                error={errors.startTime}
-                onChange={updateField}
-              />
-
-              <DraftField
-                id="voicedraft-end"
-                field="endTime"
-                label="Hora de fin"
-                type="time"
-                value={values.endTime}
-                missing={isMissing('endTime')}
-                error={errors.endTime}
-                onChange={updateField}
-              />
+              <DraftField id="voicedraft-start" field="startTime" label="Hora de inicio" type="time" value={values.startTime} missing={isMissing('startTime')} error={errors.startTime} onChange={updateField} />
+              <DraftField id="voicedraft-end" field="endTime" label="Hora de fin" type="time" value={values.endTime} missing={isMissing('endTime')} error={errors.endTime} onChange={updateField} />
             </div>
-
-            <DraftField
-              id="voicedraft-hours"
-              field="hours"
-              label="Horas"
-              type="number"
-              value={values.hours}
-              missing={isMissing('hours')}
-              error={errors.hours}
-              warning={hoursWarning}
-              onChange={updateField}
-            />
-
-            <DraftField
-              id="voicedraft-activity"
-              field="activity"
-              label="Actividad"
-              type="textarea"
-              value={values.activity}
-              missing={isMissing('activity')}
-              error={errors.activity}
-              onChange={updateField}
-            />
-
-            {submitError ? (
-              <p role="alert" className="text-14 text-void">
-                {submitError}
-              </p>
-            ) : null}
+            <DraftField id="voicedraft-hours" field="hours" label="Horas" type="number" value={values.hours} missing={isMissing('hours')} error={errors.hours} warning={hoursWarning} onChange={updateField} />
+            <DraftField id="voicedraft-activity" field="activity" label="Actividad" type="textarea" value={values.activity} missing={isMissing('activity')} error={errors.activity} onChange={updateField} />
+            {submitError ? <p role="alert" className="text-14 text-void">{submitError}</p> : null}
           </DialogBody>
-
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>
-              Cancelar
-            </Button>
-            <Button type="submit" disabled={hasAnyIncompleteField || submitting}>
-              {submitting ? 'Confirmando…' : 'Confirmar'}
-            </Button>
+            <Button type="button" variant="outline" onClick={onClose} disabled={submitting}>Cancelar</Button>
+            <Button type="submit" disabled={hasIncomplete || submitting}>{submitting ? 'Confirmando…' : 'Confirmar'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
