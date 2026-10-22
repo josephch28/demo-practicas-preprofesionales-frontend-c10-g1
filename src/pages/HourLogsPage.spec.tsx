@@ -2,18 +2,22 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { HourLogsPage } from './HourLogsPage'
 
-const { usePlacementMock, useHourLogsMock, hourLogsUpdateMock } = vi.hoisted(() => ({
-  usePlacementMock: vi.fn(),
-  useHourLogsMock: vi.fn(),
-  hourLogsUpdateMock: vi.fn().mockResolvedValue(1),
-}))
+const { usePlacementMock, useHourLogsMock, useVoiceNotesMock, hourLogsUpdateMock } = vi.hoisted(
+  () => ({
+    usePlacementMock: vi.fn(),
+    useHourLogsMock: vi.fn(),
+    useVoiceNotesMock: vi.fn(),
+    hourLogsUpdateMock: vi.fn().mockResolvedValue(1),
+  }),
+)
 
 vi.mock('@/offline/hooks/usePlacement', () => ({ usePlacement: () => usePlacementMock() }))
 vi.mock('@/offline/hooks/useHourLogs', () => ({ useHourLogs: (...args: unknown[]) => useHourLogsMock(...args) }))
+vi.mock('@/offline/hooks/useVoiceNotes', () => ({ useVoiceNotes: () => useVoiceNotesMock() }))
 
 import { formatShortDate } from '@/lib/date'
 import { summarizeHours } from '@/lib/hours'
-import type { LocalHourLog } from '@/offline/db'
+import type { LocalHourLog, LocalVoiceNote } from '@/offline/db'
 
 // Envuelven la implementación real: sirven para contar llamadas sin cambiar el resultado.
 vi.mock('@/lib/hours', async (importOriginal) => {
@@ -52,6 +56,7 @@ function makeLog(overrides: Partial<LocalHourLog> = {}): LocalHourLog {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useVoiceNotesMock.mockReturnValue([])
 })
 
 describe('HourLogsPage', () => {
@@ -87,6 +92,32 @@ describe('HourLogsPage', () => {
     render(<HourLogsPage />)
     expect(screen.getByRole('button', { name: 'Dictar horas' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Registrar horas' })).toBeInTheDocument()
+  })
+
+  it('opens and closes VoiceDraftDialog when reviewing a draft voice note', () => {
+    const draftNote: LocalVoiceNote = {
+      id: 7,
+      audio: new Blob(['audio'], { type: 'audio/webm' }),
+      mimeType: 'audio/webm',
+      durationMs: 3000,
+      recordedAt: '2026-10-21T10:00:00.000Z',
+      status: 'draft',
+      attempts: 1,
+      transcript: 'Cuatro horas de pruebas',
+      draft: { date: '2026-10-21', startTime: '08:00', endTime: '12:00', hours: 4, activity: 'Pruebas' },
+      missing: [],
+    }
+    usePlacementMock.mockReturnValue(PLACEMENT)
+    useHourLogsMock.mockReturnValue([])
+    useVoiceNotesMock.mockReturnValue([draftNote])
+
+    render(<HourLogsPage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+    expect(screen.getByText('Revisar borrador de horas')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+    expect(screen.queryByText('Revisar borrador de horas')).not.toBeInTheDocument()
   })
 
   it('shows the review note banner when a log has syncState failed', () => {
