@@ -56,48 +56,54 @@ async function requestTokenRefresh(): Promise<string | null> {
   }
 }
 
+function buildHeaders(init: RequestInit, token: string | null): HeadersInit {
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData
+  return {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...init.headers,
+  }
+}
+
+function shouldRefreshToken(status: number, path: string): boolean {
+  return status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/refresh')
+}
+
+async function handleUnauthorized<T>(path: string, init: RequestInit, res: Response): Promise<T> {
+  if (!isRefreshing) {
+    isRefreshing = true
+    refreshPromise = requestTokenRefresh().finally(() => {
+      isRefreshing = false
+      refreshPromise = null
+    })
+  }
+
+  const newAccessToken = await refreshPromise
+
+  if (newAccessToken) {
+    const retryRes = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers: buildHeaders(init, newAccessToken),
+    })
+    if (retryRes.ok) {
+      return retryRes.json() as Promise<T>
+    }
+  }
+
+  notifySessionExpired()
+  const body = await res.json().catch(() => ({}))
+  throw new ApiError(401, body.message ?? 'sesión expirada')
+}
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = localStorage.getItem('access_token')
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...init.headers,
-    },
+    headers: buildHeaders(init, token),
   })
 
-  // Si recibimos 401 y no es ya una petición de login o refresh, intentamos renovar
-  if (res.status === 401 && !path.startsWith('/auth/login') && !path.startsWith('/auth/refresh')) {
-    if (!isRefreshing) {
-      isRefreshing = true
-      refreshPromise = requestTokenRefresh().finally(() => {
-        isRefreshing = false
-        refreshPromise = null
-      })
-    }
-
-    const newAccessToken = await refreshPromise
-
-    if (newAccessToken) {
-      // Reintentar la petición original con el nuevo token de acceso
-      const retryRes = await fetch(`${API_URL}${path}`, {
-        ...init,
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${newAccessToken}`,
-          ...init.headers,
-        },
-      })
-      if (retryRes.ok) {
-        return retryRes.json() as Promise<T>
-      }
-    }
-
-    // Si la renovación no tuvo éxito o el reintento falló con 401, la sesión expiró definitivamente
-    notifySessionExpired()
-    const body = await res.json().catch(() => ({}))
-    throw new ApiError(401, body.message ?? 'sesión expirada')
+  if (shouldRefreshToken(res.status, path)) {
+    return handleUnauthorized<T>(path, init, res)
   }
 
   if (!res.ok) {
