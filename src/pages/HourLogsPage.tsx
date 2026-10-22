@@ -6,6 +6,7 @@ import { EmptyState, LoadingState, Panel } from '@/components/Panel'
 import { ReviewNoteBanner } from '@/components/ReviewNoteBanner'
 import { StatusBadge } from '@/components/StatusBadge'
 import { VoiceNotesPanel } from '@/components/VoiceNotesPanel'
+import { VoiceRecordButton } from '@/components/VoiceRecordButton'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -138,7 +139,12 @@ export function HourLogsPage() {
       <PageHeader
         title="Libro de horas"
         subtitle="Todo lo que registraste este período. Se guarda en este dispositivo aunque no haya señal."
-        actions={<NewHourLogDialog placementId={placement.id} />}
+        actions={
+          <>
+            <VoiceRecordButton />
+            <NewHourLogDialog placementId={placement.id} />
+          </>
+        }
       />
 
       <VoiceNotesPanel onReview={setReviewingNote} />
