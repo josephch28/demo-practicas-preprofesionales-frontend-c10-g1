@@ -8,12 +8,16 @@ import {
 } from '@/api/companies'
 import { ApiError } from '@/api/client'
 import { type Offer, getOffer } from '@/api/offers'
+import { AffinityNote, ApplicationRankingBar } from '@/components/ApplicationRankingBar'
 import { PageHeader } from '@/components/PageHeader'
 import { EmptyState, LoadingState, Panel, TableHeaderRow, rowClass } from '@/components/Panel'
 import { StatusBadge } from '@/components/StatusBadge'
 import { Button } from '@/components/ui/button'
 import { Ledger } from '@/components/ledger/Ledger'
+import { orderByRanking } from '@/lib/application-ranking'
 import { parseLocalDate } from '@/lib/date'
+import { useOnline } from '@/offline/hooks/useOnline'
+import { useApplicationRanking } from './useApplicationRanking'
 
 type DecisionState = 'interviewing' | 'accepting' | 'rejecting' | null
 
@@ -21,6 +25,10 @@ function formatDate(dateValue: string): string {
   const parsed = parseLocalDate(dateValue)
   if (Number.isNaN(parsed.getTime())) return dateValue
   return new Intl.DateTimeFormat('es-EC', { day: '2-digit', month: 'short', year: 'numeric' }).format(parsed)
+}
+
+function isDecidable(application: OfferApplication): boolean {
+  return application.status === 'SUBMITTED' || application.status === 'INTERVIEW'
 }
 
 function acceptedCount(applications: OfferApplication[]): number {
@@ -67,6 +75,9 @@ export function OfferApplicationsPage() {
 
   const [decisionState, setDecisionState] = useState<Record<number, DecisionState>>({})
   const [decisionError, setDecisionError] = useState<string | null>(null)
+
+  const online = useOnline()
+  const suggestions = useApplicationRanking(offerId)
 
   function refetchApplications() {
     return listApplicationsForOffer(offerId)
@@ -159,11 +170,22 @@ export function OfferApplicationsPage() {
       <Panel
         toolbar={
           applications.length > 0 ? (
-            <span className="ml-auto font-data text-12 text-inkSoft">
-              {applications.length === 1
-                ? '1 postulación'
-                : `${applications.length} postulaciones`}
-            </span>
+            <>
+              <ApplicationRankingBar
+                pendingCount={applications.filter(isDecidable).length}
+                online={online}
+                loading={suggestions.loading}
+                ranking={suggestions.ranking}
+                error={suggestions.error}
+                onSuggest={suggestions.suggest}
+                onClear={suggestions.clear}
+              />
+              <span className="ml-auto font-data text-12 text-inkSoft">
+                {applications.length === 1
+                  ? '1 postulación'
+                  : `${applications.length} postulaciones`}
+              </span>
+            </>
           ) : undefined
         }
       >
@@ -174,11 +196,10 @@ export function OfferApplicationsPage() {
           />
         ) : (
           <Ledger header={<ColumnHeader />}>
-            {applications.map((application) => {
+            {orderByRanking(applications, suggestions.ranking).map(({ application, suggestion }) => {
               const state = decisionState[application.id] ?? null
               const busy = state !== null
-              const decidable =
-                application.status === 'SUBMITTED' || application.status === 'INTERVIEW'
+              const decidable = isDecidable(application)
               return (
                 <div key={application.id} className={rowClass}>
                   <span className="text-14 font-semibold text-ink sm:w-40">
@@ -188,6 +209,7 @@ export function OfferApplicationsPage() {
                     <span className="block max-w-[520px] rounded-md bg-soft px-3 py-2.5 text-13 leading-relaxed text-inkDeep">
                       {application.motivation}
                     </span>
+                    {suggestion && decidable ? <AffinityNote suggestion={suggestion} /> : null}
                   </span>
                   <span className="font-data text-13 text-inkSoft sm:w-28">
                     {formatDate(application.submittedAt)}
