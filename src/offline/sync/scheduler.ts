@@ -5,7 +5,7 @@ import { pushOutbox } from './push'
 import { computeBackoffDelay, DEFAULT_RETRY_CONFIG, type RetryConfig } from './retry'
 import { getStatus, setStatus } from './status'
 
-const SYNC_INTERVAL_MS = 60_000
+const SYNC_INTERVAL_MS = 30_000
 const MAX_PULL_ROUNDS = 20
 
 function hasSession(): boolean {
@@ -114,7 +114,28 @@ export function syncNow(): Promise<void> {
   return currentSync
 }
 
-// Arranca el scheduler: sincroniza al montar, al recuperar conexión y cada 60s.
+let rerunQueued = false
+
+// Sincroniza ya, sin esperar al intervalo, cuando se acaba de encolar algo.
+// Sin conexión o sin sesión no hace nada: lo tomará el siguiente ciclo. Si hay
+// una corrida en curso (que pudo no ver lo nuevo) pide una más al terminar.
+export function syncSoon(): Promise<void> {
+  const online = getStatus().online && (typeof navigator === 'undefined' || navigator.onLine !== false)
+  if (!online || !hasSession()) return Promise.resolve()
+
+  const running = currentSync
+  if (!running) return syncNow()
+  if (rerunQueued) return running
+
+  rerunQueued = true
+  return running.then(() => {
+    rerunQueued = false
+    return syncNow()
+  })
+}
+
+// Arranca el scheduler: sincroniza al montar, al recuperar conexión, al volver a
+// la pestaña y cada 30 s.
 export function startSync(): () => void {
   void syncNow()
 
@@ -128,8 +149,13 @@ export function startSync(): () => void {
     cancelRetry()
   }
 
+  const handleVisible = () => {
+    if (document.visibilityState === 'visible') void syncSoon()
+  }
+
   window.addEventListener('online', handleOnline)
   window.addEventListener('offline', handleOffline)
+  document.addEventListener('visibilitychange', handleVisible)
 
   const intervalId = window.setInterval(() => {
     void syncNow()
@@ -138,6 +164,7 @@ export function startSync(): () => void {
   return () => {
     window.removeEventListener('online', handleOnline)
     window.removeEventListener('offline', handleOffline)
+    document.removeEventListener('visibilitychange', handleVisible)
     window.clearInterval(intervalId)
     cancelRetry()
   }

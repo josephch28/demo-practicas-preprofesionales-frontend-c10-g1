@@ -94,3 +94,19 @@ export async function processVoiceNotes(): Promise<void> {
     }
   }
 }
+
+/**
+ * Procesa las notas pendientes sin esperar al ciclo de sincronización (cada
+ * 60 s): se usa al terminar una grabación o al reintentar, para que el borrador
+ * aparezca enseguida. Sin conexión o sin sesión no hace nada: la nota queda
+ * pendiente y la toma el sincronizador al volver la señal.
+ */
+export async function processVoiceNotesNow(): Promise<void> {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+  if (!localStorage.getItem('access_token')) return
+  try {
+    await processVoiceNotes()
+  } catch (err) {
+    console.error('procesamiento inmediato de notas de voz falló', err)
+  }
+}

@@ -1,11 +1,14 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { processVoiceNotesNow } from '@/offline/voice/process'
 import { addVoiceNote } from '@/offline/voice/voiceNotes'
 import { MAX_RECORDING_MS, useVoiceRecorder, VOICE_RECORDER_MESSAGES as MESSAGES } from './useVoiceRecorder'
 
 vi.mock('@/offline/voice/voiceNotes', () => ({ addVoiceNote: vi.fn() }))
+vi.mock('@/offline/voice/process', () => ({ processVoiceNotesNow: vi.fn() }))
 
 const addVoiceNoteMock = vi.mocked(addVoiceNote)
+const processNowMock = vi.mocked(processVoiceNotesNow)
 
 let supportedTypes: string[] = []
 const instances: FakeMediaRecorder[] = []
@@ -55,6 +58,7 @@ beforeEach(() => {
   track.stop.mockClear()
   getUserMedia.mockReset().mockResolvedValue({ getTracks: () => [track] })
   addVoiceNoteMock.mockReset().mockResolvedValue(1)
+  processNowMock.mockReset()
   fetchMock.mockReset()
   vi.stubGlobal('MediaRecorder', FakeMediaRecorder)
   vi.stubGlobal('fetch', fetchMock)
@@ -110,6 +114,17 @@ describe('useVoiceRecorder · flujo feliz', () => {
     expect(note.audio.size).toBeGreaterThan(0)
     expect(result.current.state).toBe('idle')
     expect(result.current.elapsedMs).toBe(0)
+  })
+
+  it('al guardar la nota pide procesarla de inmediato, sin esperar al ciclo de sincronización', async () => {
+    const { result } = await startRecording()
+
+    await act(async () => {
+      result.current.stop()
+    })
+
+    expect(processNowMock).toHaveBeenCalledTimes(1)
+    expect(addVoiceNoteMock.mock.invocationCallOrder[0]).toBeLessThan(processNowMock.mock.invocationCallOrder[0])
   })
 
   it('libera el micrófono al terminar', async () => {
@@ -254,6 +269,7 @@ describe('useVoiceRecorder · errores', () => {
 
     expect(result.current.state).toBe('error')
     expect(result.current.errorMessage).toBe(MESSAGES.saveFailed)
+    expect(processNowMock).not.toHaveBeenCalled()
     expect(track.stop).toHaveBeenCalled()
   })
 

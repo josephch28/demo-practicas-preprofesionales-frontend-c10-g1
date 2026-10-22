@@ -1,7 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, api } from '@/api/client'
 import { db } from '@/offline/db'
-import { inFlightVoiceNoteIds, processVoiceNotes } from './process'
+import { inFlightVoiceNoteIds, processVoiceNotes, processVoiceNotesNow } from './process'
 
 vi.mock('@/api/client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/api/client')>()
@@ -135,5 +135,48 @@ describe('processVoiceNotes', () => {
     expect(mockedApi).not.toHaveBeenCalled()
     const saved = await db.voiceNotes.get(id)
     expect(saved?.status).toBe('pending')
+  })
+})
+
+describe('processVoiceNotesNow', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    localStorage.removeItem('access_token')
+  })
+
+  it('con conexión y sesión procesa las notas pendientes al instante', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+    localStorage.setItem('access_token', 't')
+    const id = await db.voiceNotes.add({
+      audio: audioBlob(),
+      mimeType: 'audio/webm',
+      durationMs: 4000,
+      recordedAt: '2026-10-21T10:00:00.000Z',
+      status: 'pending',
+      attempts: 0,
+    })
+    mockedApi.mockResolvedValue({ transcript: 't', draft: { date: '2026-10-21', hours: 4, activity: 'x' }, missing: [] })
+
+    await processVoiceNotesNow()
+
+    expect((await db.voiceNotes.get(id))?.status).toBe('draft')
+  })
+
+  it('sin conexión no hace nada: la nota queda pendiente para el sincronizador', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+    localStorage.setItem('access_token', 't')
+
+    await processVoiceNotesNow()
+
+    expect(mockedApi).not.toHaveBeenCalled()
+  })
+
+  it('sin sesión no hace nada', async () => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true)
+    localStorage.removeItem('access_token')
+
+    await processVoiceNotesNow()
+
+    expect(mockedApi).not.toHaveBeenCalled()
   })
 })

@@ -1,12 +1,15 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { LocalVoiceNote } from '@/offline/db'
+import { processVoiceNotesNow } from '@/offline/voice/process'
 import { VoiceNoteRow } from './VoiceNoteRow'
 
 const { deleteVoiceNoteMock, updateVoiceNoteMock } = vi.hoisted(() => ({
   deleteVoiceNoteMock: vi.fn().mockResolvedValue(undefined),
   updateVoiceNoteMock: vi.fn().mockResolvedValue(true),
 }))
+
+vi.mock('@/offline/voice/process', () => ({ processVoiceNotesNow: vi.fn() }))
 
 vi.mock('@/offline/voice/voiceNotes', () => ({
   deleteVoiceNote: (...args: unknown[]) => deleteVoiceNoteMock(...args),
@@ -81,24 +84,31 @@ describe('VoiceNoteRow', () => {
     const retryBtn = screen.getByRole('button', { name: 'Reintentar' })
     fireEvent.click(retryBtn)
     expect(updateVoiceNoteMock).toHaveBeenCalledWith(42, { status: 'pending', attempts: 0 })
+    await waitFor(() => expect(processVoiceNotesNow).toHaveBeenCalled())
   })
 
-  it('permite descartar pidiendo confirmación y borrando con deleteVoiceNote', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
+  it('descartar pide confirmación en la propia fila, sin usar el diálogo del navegador, y borra al confirmar', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm')
     render(<VoiceNoteRow note={makeNote({ id: 99 })} onReview={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
-    expect(window.confirm).toHaveBeenCalledWith('¿Descartar esta nota de voz?')
-    expect(deleteVoiceNoteMock).toHaveBeenCalledWith(99)
-  })
-
-  it('no borra si el usuario cancela la confirmación de descarte', () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
-    render(<VoiceNoteRow note={makeNote({ id: 99 })} onReview={vi.fn()} />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
-    expect(window.confirm).toHaveBeenCalled()
     expect(deleteVoiceNoteMock).not.toHaveBeenCalled()
+    expect(screen.getByText('¿Descartar esta nota?')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sí, descartar' }))
+    expect(deleteVoiceNoteMock).toHaveBeenCalledWith(99)
+    expect(confirmSpy).not.toHaveBeenCalled()
+  })
+
+  it('no borra si se cancela el descarte y vuelven las acciones de la fila', () => {
+    render(<VoiceNoteRow note={makeNote({ id: 99 })} onReview={vi.fn()} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Descartar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(deleteVoiceNoteMock).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Reproducir' })).toBeInTheDocument()
+    expect(screen.queryByText('¿Descartar esta nota?')).not.toBeInTheDocument()
   })
 
   it('reproduce el audio con createObjectURL y revoca la URL al desmontar', () => {

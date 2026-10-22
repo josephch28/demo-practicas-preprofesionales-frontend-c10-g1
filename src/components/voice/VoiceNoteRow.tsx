@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import type { LocalVoiceNote } from '@/offline/db'
+import { processVoiceNotesNow } from '@/offline/voice/process'
 import { deleteVoiceNote, updateVoiceNote } from '@/offline/voice/voiceNotes'
 import {
   STATUS_LABELS,
@@ -15,6 +16,7 @@ interface VoiceNoteRowProps {
 
 export function VoiceNoteRow({ note, onReview }: VoiceNoteRowProps) {
   const [isPlaying, setIsPlaying] = useState(false)
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const audioUrlRef = useRef<string | null>(null)
 
@@ -68,13 +70,11 @@ export function VoiceNoteRow({ note, onReview }: VoiceNoteRowProps) {
 
   const handleRetry = async () => {
     await updateVoiceNote(note.id, { status: 'pending', attempts: 0 })
+    void processVoiceNotesNow()
   }
 
   const handleDiscard = async () => {
-    const confirmed = window.confirm('¿Descartar esta nota de voz?')
-    if (confirmed) {
-      await deleteVoiceNote(note.id)
-    }
+    await deleteVoiceNote(note.id)
   }
 
   return (
@@ -94,46 +94,39 @@ export function VoiceNoteRow({ note, onReview }: VoiceNoteRowProps) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handlePlayToggle}
-        >
-          {isPlaying ? 'Pausar' : 'Reproducir'}
-        </Button>
-
-        {note.status === 'draft' ? (
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => onReview(note)}
-          >
-            Revisar
+      {confirmingDiscard ? (
+        <div role="group" aria-label="Confirmar descarte" className="flex flex-wrap items-center gap-2">
+          <span className="text-13 text-ink">¿Descartar esta nota?</span>
+          <Button type="button" variant="destructive" size="sm" onClick={handleDiscard}>
+            Sí, descartar
           </Button>
-        ) : null}
-
-        {note.status === 'failed' ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleRetry}
-          >
-            Reintentar
+          <Button type="button" variant="outline" size="sm" autoFocus onClick={() => setConfirmingDiscard(false)}>
+            Cancelar
           </Button>
-        ) : null}
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={handlePlayToggle}>
+            {isPlaying ? 'Pausar' : 'Reproducir'}
+          </Button>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={handleDiscard}
-        >
-          Descartar
-        </Button>
-      </div>
+          {note.status === 'draft' ? (
+            <Button type="button" size="sm" onClick={() => onReview(note)}>
+              Revisar
+            </Button>
+          ) : null}
+
+          {note.status === 'failed' ? (
+            <Button type="button" variant="outline" size="sm" onClick={handleRetry}>
+              Reintentar
+            </Button>
+          ) : null}
+
+          <Button type="button" variant="ghost" size="sm" onClick={() => setConfirmingDiscard(true)}>
+            Descartar
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
