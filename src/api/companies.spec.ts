@@ -8,6 +8,7 @@ import {
   listCompanies,
   listMyOffers,
   publishOffer,
+  rankApplicationsForOffer,
 } from './companies'
 
 vi.mock('./client', async (importOriginal) => {
@@ -76,5 +77,11 @@ describe('companies api', () => {
   it('propagates ApiError from the client', async () => {
     vi.mocked(api).mockRejectedValue(new ApiError(400, 'la oferta ya no tiene cupos'))
     await expect(decideApplication(9, 'ACCEPTED')).rejects.toBeInstanceOf(ApiError)
+  })
+
+  it('asks the AI to rank the applications of an offer via POST /offers/:id/applications/rank', async () => {
+    vi.mocked(api).mockResolvedValue({ offerId: 7, ranking: [], unranked: [], truncated: false })
+    await rankApplicationsForOffer(7)
+    expect(api).toHaveBeenCalledWith('/offers/7/applications/rank', { method: 'POST' })
   })
 })
